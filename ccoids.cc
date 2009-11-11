@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <vector>
+#include <map>
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
@@ -26,8 +27,8 @@ const float WIND_FACTOR = 0.001;
 
 class AgentInfo {
 public:
-	AgentInfo(int id, float x, float y)
-		: id_(id), local_id_(0), x_(x), y_(y), dx_(0.0), dy_(0.0) {
+	AgentInfo()
+		: id_(-1), local_id_(-1), x_(0.0), y_(0.0), dx_(0.0), dy_(0.0) {
 	}
 
 	int id_;
@@ -36,6 +37,7 @@ public:
 	float dx_, dy_;
 };
 
+typedef map<int, AgentInfo> AIMap;
 class World {
 public:
 	World() : id_counter_(0) {
@@ -43,27 +45,23 @@ public:
 
 	void enter(AgentInfo& info) {
 		info.local_id_ = id_counter_++;
-		infos_.push_back(info);
+		infos_[info.local_id_] = info;
 	}
 
 	void update(AgentInfo& info) {
-		// FIXME use a map!
-		for (int i = 0; i < infos_.size(); i++) {
-			if (infos_[i].local_id_ == info.local_id_) {
-				infos_[i] = info;
-				break;
-			}
-		}
+		infos_[info.local_id_] = info;
 	}
 
-	void look(vector<AgentInfo> **infos) {
+	void look(AIMap::const_iterator& begin,
+	          AIMap::const_iterator& end) {
 		// FIXME a bit ugly; could use an explicit Mobile
-		*infos = &infos_;
+		begin = infos_.begin();
+		end = infos_.end();
 	}
 
 private:
 	int id_counter_;
-	vector<AgentInfo> infos_;
+	AIMap infos_;
 };
 
 class Boid : public Activity {
@@ -90,11 +88,11 @@ protected:
 
 			{
 				Claim<World> c(*ctx_, world_);
-				vector<AgentInfo> *infos;
-				c->look(&infos);
+				AIMap::const_iterator it, end;
+				c->look(it, end);
 
-				for (vector<AgentInfo>::iterator it = infos->begin(); it != infos->end(); ++it) {
-					AgentInfo that = *it;
+				for (; it != end; ++it) {
+					AgentInfo that = it->second;
 
 					if (that.id_ == info_.id_) {
 						// This bird -- ignore
@@ -215,13 +213,14 @@ protected:
 			{
 				Claim<World> c(*ctx_, world_);
 
-				vector<AgentInfo> *infos;
-				c->look(&infos);
+				AIMap::const_iterator it, end;
+				c->look(it, end);
 
-				for (vector<AgentInfo>::iterator it = infos->begin(); it != infos->end(); ++it) {
+				for (; it != end; ++it) {
+					const AgentInfo& info = it->second;
 
-					int x = it->x_ * size;
-					int y = it->y_ * size;
+					int x = info.x_ * size;
+					int y = info.y_ * size;
 					pixels[(y * size) + x] = 0xFFFFFF;
 				}
 			}
@@ -248,11 +247,11 @@ class Ccoids : public InitialActivity {
 			Forking f(*this);
 
 			for (int id = 0; id < BIRDS; id++) {
-				float x, y;
-				x = rand() / (1.0 * RAND_MAX);
-				y = rand() / (1.0 * RAND_MAX);
+				AgentInfo info;
+				info.id_ = id;
+				info.x_ = rand() / (1.0 * RAND_MAX);
+				info.y_ = rand() / (1.0 * RAND_MAX);
 
-				AgentInfo info(id, x, y);
 				f.fork(new Boid(info, world, bar.enroll()));
 			}
 
