@@ -9,4 +9,6 @@ ccoids_SOURCES = \
 	context.cc \
 	context.hh \
 	shared.cc \
-	shared.hh
+	shared.hh \
+	timer.cc \
+	timer.hh

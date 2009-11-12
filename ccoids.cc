@@ -1,8 +1,9 @@
 // Boids in C++ using CCSP for concurrency.
 
+#include "barrier.hh"
 #include "context.hh"
 #include "shared.hh"
-#include "barrier.hh"
+#include "timer.hh"
 
 #include <iostream>
 #include <vector>
@@ -70,7 +71,6 @@ public:
 		: info_(info), world_(world), bar_(bar) {
 	}
 
-protected:
 	void run(Context& ctx) {
 		{
 			Claim<World> c(ctx, world_);
@@ -186,18 +186,39 @@ private:
 	Barrier& bar_;
 };
 
+// We must have something that handles SDL_QUIT events, else our program won't
+// exit on SIGINT...
+class EventHandler : public Activity {
+public:
+	void run(Context& ctx) {
+		Timer tim;
+
+		while (true) {
+			SDL_Event event;
+			while (SDL_PollEvent(&event)) {
+				if (event.type == SDL_QUIT) {
+					exit(0);
+				}
+			}
+
+			tim.delay(ctx, 100000);
+		}
+	}
+};
+
 class Display : public Activity {
 public:
 	Display(Shared<World>& world, Barrier& bar)
 		: world_(world), bar_(bar) {
 	}
 
-protected:
 	void run(Context& ctx) {
 		if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 			exit(1);
 		}
 		atexit(SDL_Quit);
+
+		ctx.spawn(new EventHandler);
 
 		int size = 400;
 
