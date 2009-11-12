@@ -6,8 +6,7 @@ ccoids_SOURCES = \
 	barrier.cc \
 	barrier.hh \
 	ccoids.cc \
-	process.cc \
-	process.hh \
-	runtime.hh \
+	context.cc \
+	context.hh \
 	shared.cc \
 	shared.hh

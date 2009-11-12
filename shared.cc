@@ -1,21 +1,19 @@
 #include "shared.hh"
-#include "runtime.hh"
-
-#include <iostream>
+#include "contextimpl.hh"
 
 Mutex::Mutex(Context& ctx) : ctx_(ctx) {
 	word type = MT_SIMPLE | MT_MAKE_TYPE(MT_CB) | MT_CB_SHARED;
-	data_ = MTAlloc(ctx.wptr(), type, 0);
+	data_ = MTAlloc(wptr(ctx), type, 0);
 }
 
 Mutex::~Mutex() {
-	MTRelease(ctx_.wptr(), data_);
+	MTRelease(wptr(ctx_), data_);
 }
 
 void Mutex::claim(Context& ctx) {
-	MTLock(ctx.wptr(), data_, MT_CB_CLIENT);
+	MTLock(wptr(ctx), data_, MT_CB_CLIENT);
 }
 
 void Mutex::release(Context& ctx) {
-	MTUnlock(ctx.wptr(), data_, MT_CB_CLIENT);
+	MTUnlock(wptr(ctx), data_, MT_CB_CLIENT);
 }

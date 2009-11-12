@@ -1,7 +1,7 @@
 #ifndef BARRIER_HH
 #define BARRIER_HH
 
-#include "process.hh"
+#include "context.hh"
 
 class Barrier {
 public:

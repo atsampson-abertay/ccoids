@@ -1,7 +1,7 @@
 #ifndef SHARED_HH
 #define SHARED_HH
 
-class Context;
+#include "context.hh"
 
 class Mutex {
 public:

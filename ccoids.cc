@@ -1,7 +1,7 @@
 // Boids in C++ using CCSP for concurrency.
 
+#include "context.hh"
 #include "shared.hh"
-#include "process.hh"
 #include "barrier.hh"
 
 #include <iostream>
@@ -71,23 +71,23 @@ public:
 	}
 
 protected:
-	void run() {
+	void run(Context& ctx) {
 		{
-			Claim<World> c(*ctx_, world_);
+			Claim<World> c(ctx, world_);
 			c->enter(info_);
 		}
 
 		float angle = 0.0;
 
 		while (true) {
-			bar_.sync(*ctx_); // Phase 1
+			bar_.sync(ctx); // Phase 1
 
 			angle += 0.001;
 
 			vector<AgentInfo> view;
 
 			{
-				Claim<World> c(*ctx_, world_);
+				Claim<World> c(ctx, world_);
 				AIMap::const_iterator it, end;
 				c->look(it, end);
 
@@ -112,7 +112,7 @@ protected:
 				}
 			}
 
-			bar_.sync(*ctx_); // Phase 2
+			bar_.sync(ctx); // Phase 2
 
 			int seen = view.size();
 
@@ -174,7 +174,7 @@ protected:
 			}
 
 			{
-				Claim<World> c(*ctx_, world_);
+				Claim<World> c(ctx, world_);
 				c->update(info_);
 			}
 		}
@@ -193,7 +193,7 @@ public:
 	}
 
 protected:
-	void run() {
+	void run(Context& ctx) {
 		if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 			exit(1);
 		}
@@ -205,13 +205,13 @@ protected:
 		SDL_Surface *display = SDL_SetVideoMode(size, size, 32, SDL_DOUBLEBUF);
 
 		while (true) {
-			bar_.sync(*ctx_); // Phase 1
+			bar_.sync(ctx); // Phase 1
 
 			SDL_FillRect(display, NULL, 0);
 			uint32_t *pixels = (uint32_t *) display->pixels;
 
 			{
-				Claim<World> c(*ctx_, world_);
+				Claim<World> c(ctx, world_);
 
 				AIMap::const_iterator it, end;
 				c->look(it, end);
@@ -225,7 +225,7 @@ protected:
 				}
 			}
 
-			bar_.sync(*ctx_); // Phase 2
+			bar_.sync(ctx); // Phase 2
 
 			SDL_UpdateRect(display, 0, 0, 0, 0);
 			SDL_Flip(display);
@@ -237,14 +237,14 @@ private:
 	Barrier& bar_;
 };
 
-class Ccoids : public InitialActivity {
-	void run() {
+class Ccoids : public Activity {
+	void run(Context& ctx) {
 		cout << "ccoids starting" << endl;
 
-		Barrier bar(*ctx_, 1);
-		Shared<World> world(*ctx_, new World);
+		Barrier bar(ctx, 1);
+		Shared<World> world(ctx, new World);
 		{
-			Forking f(*this);
+			Context f(ctx);
 
 			for (int id = 0; id < BIRDS; id++) {
 				AgentInfo info;
@@ -252,10 +252,10 @@ class Ccoids : public InitialActivity {
 				info.x_ = rand() / (1.0 * RAND_MAX);
 				info.y_ = rand() / (1.0 * RAND_MAX);
 
-				f.fork(new Boid(info, world, bar.enroll()));
+				f.spawn(new Boid(info, world, bar.enroll()));
 			}
 
-			f.fork(new Display(world, bar));
+			f.spawn(new Display(world, bar));
 		}
 
 		cout << "ccoids finished" << endl;
@@ -263,5 +263,5 @@ class Ccoids : public InitialActivity {
 };
 
 int main(int argc, char *argv[]) {
-	return Ccoids().main(argc, argv);
+	return initial_activity(argc, argv, new Ccoids);
 }

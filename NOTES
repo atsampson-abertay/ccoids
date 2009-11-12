@@ -1,0 +1,7 @@
+Shared should probably be smart_ptr underneath, so the Shared item is
+ref-counted.
+
+Activity should be called Process.
+
+Mutex should be in a file of its own.
+
