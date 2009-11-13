@@ -26,16 +26,61 @@ const float AVOID_FACTOR = 0.25;
 const float VELOCITY_FACTOR = 0.125;
 const float WIND_FACTOR = 0.001;
 
+template <typename ELEMENT> class Vector {
+public:
+	Vector(ELEMENT x, ELEMENT y) : x_(x), y_(y) {
+	}
+	// FIXME Is this a bad idea?
+	template <typename OTHER>
+	Vector(Vector<OTHER> v) : x_(v.x_), y_(v.y_) {
+	}
+
+	Vector<ELEMENT> operator+(const Vector<ELEMENT>& b) const {
+		return Vector<ELEMENT>(x_ + b.x_, y_ + b.y_);
+	}
+	Vector<ELEMENT>& operator+=(const Vector<ELEMENT> &b) {
+		*this = *this + b;
+		return *this;
+	}
+	Vector<ELEMENT> operator-(const Vector<ELEMENT>& b) const {
+		return Vector<ELEMENT>(x_ - b.x_, y_ - b.y_);
+	}
+	Vector<ELEMENT>& operator-=(const Vector<ELEMENT> &b) {
+		*this = *this - b;
+		return *this;
+	}
+
+	Vector<ELEMENT> operator*(ELEMENT v) const {
+		return Vector<ELEMENT>(x_ * v, y_ * v);
+	}
+	Vector<ELEMENT>& operator*=(ELEMENT v) {
+		*this = *this * v;
+		return *this;
+	}
+	Vector<ELEMENT> operator/(ELEMENT v) const {
+		return Vector<ELEMENT>(x_ / v, y_ / v);
+	}
+	Vector<ELEMENT>& operator/=(ELEMENT v) {
+		*this = *this / v;
+		return *this;
+	}
+
+	ELEMENT mag2() const {
+		return (x_ * x_) + (y_ * y_);
+	}
+
+	ELEMENT x_, y_;
+};
+
 class AgentInfo {
 public:
 	AgentInfo()
-		: id_(-1), local_id_(-1), x_(0.0), y_(0.0), dx_(0.0), dy_(0.0) {
+		: id_(-1), local_id_(-1), pos_(0.0, 0.0), vel_(0.0, 0.0) {
 	}
 
 	int id_;
 	int local_id_;
-	float x_, y_;
-	float dx_, dy_;
+	Vector<float> pos_, vel_;
 };
 
 typedef map<int, AgentInfo> AIMap;
@@ -84,7 +129,8 @@ public:
 
 			angle += 0.001;
 
-			vector<AgentInfo> view;
+			typedef vector<AgentInfo> AIVector;
+			AIVector view;
 
 			{
 				Claim<World> c(ctx, world_);
@@ -100,10 +146,9 @@ public:
 					}
 
 					// Compute relative position
-					that.x_ -= info_.x_;
-					that.y_ -= info_.y_;
+					that.pos_ -= info_.pos_;
 
-					if ((that.x_ * that.x_) + (that.y_ * that.y_) > (VIEW_RADIUS * VIEW_RADIUS)) {
+					if (that.pos_.mag2() > (VIEW_RADIUS * VIEW_RADIUS)) {
 						// Too far away -- ignore
 						continue;
 					}
@@ -116,61 +161,56 @@ public:
 
 			int seen = view.size();
 
-			info_.dx_ = sin(angle) * WIND_FACTOR;
-			info_.dy_ = cos(angle) * WIND_FACTOR;
+			info_.vel_ = Vector<float>(sin(angle) * WIND_FACTOR,
+			                           cos(angle) * WIND_FACTOR);
 
 			// Move towards centroid of visible flock
-			float x = 0.0, y = 0.0;
-			for (vector<AgentInfo>::iterator it = view.begin(); it != view.end(); ++it) {
-				x += it->x_;
-				y += it->y_;
+			{
+				Vector<float> accel(0.0, 0.0);
+				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
+					accel += it->pos_;
+				}
+				if (seen > 0) {
+					accel /= (float) view.size();
+				}
+				info_.vel_ += accel * ATTRACT_FACTOR;
 			}
-			if (seen > 0) {
-				x /= view.size();
-				y /= view.size();
-			}
-			info_.dx_ += x * ATTRACT_FACTOR;
-			info_.dy_ += y * ATTRACT_FACTOR;
 
 			// Move away from birds that are too close
-			x = 0.0;
-			y = 0.0;
-			for (vector<AgentInfo>::iterator it = view.begin(); it != view.end(); ++it) {
-				if ((it->x_ * it->x_) + (it->y_ * it->y_) < (AVOID_RADIUS * AVOID_RADIUS)) {
-					x -= it->x_;
-					y -= it->y_;
+			{
+				Vector<float> accel(0.0, 0.0);
+				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
+					if (it->pos_.mag2() < (AVOID_RADIUS * AVOID_RADIUS)) {
+						accel -= it->pos_;
+					}
 				}
+				info_.vel_ += accel * AVOID_FACTOR;
 			}
-			info_.dx_ += x * AVOID_FACTOR;
-			info_.dy_ += y * AVOID_FACTOR;
 
 			// Match velocity
-			x = 0.0;
-			y = 0.0;
-			for (vector<AgentInfo>::iterator it = view.begin(); it != view.end(); ++it) {
-				x -= it->dx_;
-				y -= it->dy_;
+			{
+				Vector<float> accel(0.0, 0.0);
+				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
+					accel -= it->vel_;
+				}
+				if (seen > 0) {
+					accel /= (float) view.size();
+				}
+				info_.vel_ += accel * VELOCITY_FACTOR;
 			}
-			if (seen > 0) {
-				x /= view.size();
-				y /= view.size();
-			}
-			info_.dx_ += x * VELOCITY_FACTOR;
-			info_.dy_ += y * VELOCITY_FACTOR;
 
-			info_.x_ += info_.dx_;
-			while (info_.x_ < -0.0) {
-				info_.x_ += 1.0;
+			info_.pos_ += info_.vel_;
+			while (info_.pos_.x_ < -0.0) {
+				info_.pos_.x_ += 1.0;
 			}
-			while (info_.x_ > 1.0) {
-				info_.x_ -= 1.0;
+			while (info_.pos_.x_ > 1.0) {
+				info_.pos_.x_ -= 1.0;
 			}
-			info_.y_ += info_.dy_;
-			while (info_.y_ < -0.0) {
-				info_.y_ += 1.0;
+			while (info_.pos_.y_ < -0.0) {
+				info_.pos_.y_ += 1.0;
 			}
-			while (info_.y_ > 1.0) {
-				info_.y_ -= 1.0;
+			while (info_.pos_.y_ > 1.0) {
+				info_.pos_.y_ -= 1.0;
 			}
 
 			{
@@ -240,9 +280,8 @@ public:
 				for (; it != end; ++it) {
 					const AgentInfo& info = it->second;
 
-					int x = info.x_ * size;
-					int y = info.y_ * size;
-					pixels[(y * size) + x] = 0xFFFFFF;
+					Vector<int> p(info.pos_ * (float) size);
+					pixels[(p.y_ * size) + p.x_] = 0xFFFFFF;
 				}
 			}
 
@@ -270,8 +309,8 @@ class Ccoids : public Activity {
 			for (int id = 0; id < BIRDS; id++) {
 				AgentInfo info;
 				info.id_ = id;
-				info.x_ = rand() / (1.0 * RAND_MAX);
-				info.y_ = rand() / (1.0 * RAND_MAX);
+				info.pos_ = Vector<float>(rand() / (1.0 * RAND_MAX),
+				                          rand() / (1.0 * RAND_MAX));
 
 				f.spawn(new Boid(info, world, bar.enroll()));
 			}
