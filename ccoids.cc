@@ -13,18 +13,22 @@
 #include <cmath>
 #include <stdint.h>
 #include <SDL.h>
+#include <SDL_gfxPrimitives.h>
 
 using namespace std;
 
 const int BIRDS = 1000;
 const int WIDTH_LOCATIONS = 6;
 const int HEIGHT_LOCATIONS = 4;
-const float VIEW_RADIUS = 0.5;
-const float ATTRACT_FACTOR = 0.02;
-const float AVOID_RADIUS = 0.01;
-const float AVOID_FACTOR = 0.25;
-const float VELOCITY_FACTOR = 0.125;
-const float WIND_FACTOR = 0.001;
+
+const float MAX_INITIAL_SPEED = 0.1;
+const float VISION_RADIUS = 0.25;
+const float MEAN_VELOCITY_FRACTION = 8.0;
+const float CENTRE_OF_MASS_FRACTION = 45.0;
+const float REPULSION_DISTANCE = 0.05;
+const float REPULSION_FRACTION = 4.0;
+const float SMOOTH_ACCELERATION = 5.0;
+const float SPEED_LIMIT = 0.03;
 
 template <typename ELEMENT> class Vector {
 public:
@@ -225,12 +229,8 @@ public:
 	void run(Context& ctx) {
 		do_update(ctx, true);
 
-		float angle = 0.0;
-
 		while (true) {
 			bar_.sync(ctx); // Phase 1
-
-			angle += 0.001;
 
 			typedef vector<AgentInfo> AIVector;
 			AIVector view;
@@ -251,7 +251,7 @@ public:
 					// Compute relative position
 					that.pos_ -= info_.pos_;
 
-					if (that.pos_.mag2() > (VIEW_RADIUS * VIEW_RADIUS)) {
+					if (that.pos_.mag2() > (VISION_RADIUS * VISION_RADIUS)) {
 						// Too far away -- ignore
 						continue;
 					}
@@ -264,42 +264,50 @@ public:
 
 			int seen = view.size();
 
-			info_.vel_ = Vector<float>(sin(angle) * WIND_FACTOR,
-			                           cos(angle) * WIND_FACTOR);
+			Vector<float> accel(0.0, 0.0);
 
 			// Move towards centroid of visible flock
 			{
-				Vector<float> accel(0.0, 0.0);
+				Vector<float> a(0.0, 0.0);
 				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
-					accel += it->pos_;
+					a += it->pos_;
 				}
 				if (seen > 0) {
-					accel /= (float) view.size();
+					a /= (float) view.size();
 				}
-				info_.vel_ += accel * ATTRACT_FACTOR;
+				accel += a / CENTRE_OF_MASS_FRACTION;
 			}
 
 			// Move away from birds that are too close
 			{
-				Vector<float> accel(0.0, 0.0);
+				Vector<float> a(0.0, 0.0);
 				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
-					if (it->pos_.mag2() < (AVOID_RADIUS * AVOID_RADIUS)) {
-						accel -= it->pos_;
+					if (it->pos_.mag2() < (REPULSION_DISTANCE * REPULSION_DISTANCE)) {
+						a -= it->pos_;
 					}
 				}
-				info_.vel_ += accel * AVOID_FACTOR;
+				accel += a / REPULSION_FRACTION;
 			}
 
 			// Match velocity
 			{
-				Vector<float> accel(0.0, 0.0);
+				Vector<float> a(0.0, 0.0);
 				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
-					accel -= it->vel_;
+					a -= it->vel_;
 				}
 				if (seen > 0) {
-					accel /= (float) view.size();
+					a /= (float) view.size();
 				}
-				info_.vel_ += accel * VELOCITY_FACTOR;
+				accel += a / MEAN_VELOCITY_FRACTION;
+			}
+
+			info_.vel_ += accel / SMOOTH_ACCELERATION;
+
+			// Apply speed limit
+			float mag = info_.vel_.mag2();
+			const float speed_limit2 = SPEED_LIMIT * SPEED_LIMIT;
+			if (mag > speed_limit2) {
+				info_.vel_ /= mag / speed_limit2;
 			}
 
 			info_.pos_ += info_.vel_;
@@ -334,6 +342,12 @@ public:
 	}
 };
 
+#define rgb(v) (((v) << 8) | 0xFF)
+const Uint32 BACKGROUND_COLOUR = rgb(0);
+const Uint32 GRID_COLOUR = rgb(0x447744);
+const Uint32 AGENT_COLOUR = rgb(0xFF8080);
+const Uint32 TAIL_COLOUR = rgb(0x808080);
+
 class Display : public Activity {
 public:
 	Display(Shared<World>& world, Barrier& bar)
@@ -358,8 +372,14 @@ public:
 		while (true) {
 			bar_.sync(ctx); // Phase 1
 
-			SDL_FillRect(display, NULL, 0);
-			uint32_t *pixels = (uint32_t *) display->pixels;
+			boxColor(display, 0, 0, WIDTH_LOCATIONS * scale, HEIGHT_LOCATIONS * scale, BACKGROUND_COLOUR);
+
+			for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
+				vlineColor(display, x * scale, 0, HEIGHT_LOCATIONS * scale, GRID_COLOUR);
+			}
+			for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
+				hlineColor(display, 0, WIDTH_LOCATIONS * scale, y * scale, GRID_COLOUR);
+			}
 
 			for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
 				for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
@@ -376,9 +396,11 @@ public:
 					for (; it != end; ++it) {
 						const AgentInfo& info = it->second;
 
-						Vector<int> p(info.pos_ * (float) scale);
-						p += Vector<int>(x, y) * scale;
-						pixels[(p.y_ * scale * WIDTH_LOCATIONS) + p.x_] = 0xFFFFFF;
+						Vector<float> offset(x, y);
+						Vector<int> p((offset + info.pos_) * (float) scale);
+						filledCircleColor(display, p.x_, p.y_, scale / 50, AGENT_COLOUR);
+						Vector<int> t((offset + info.pos_ + info.vel_) * (float) scale);
+						lineColor(display, p.x_, p.y_, t.x_, t.y_, TAIL_COLOUR);
 					}
 				}
 			}
@@ -445,6 +467,11 @@ class Ccoids : public Activity {
 				info.id_ = id;
 				info.pos_ = Vector<float>(pos.x_ - pos_loc.x_,
 				                          pos.y_ - pos_loc.y_);
+
+				float speed = rand_float() * MAX_INITIAL_SPEED;
+				float dir = rand_float() * 2.0 * M_PI;
+				info.vel_ = Vector<float>(speed * cos(dir),
+				                          speed * sin(dir));
 
 				f.spawn(new Boid(info, loc, bar.enroll()));
 			}
