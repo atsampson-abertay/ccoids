@@ -24,6 +24,8 @@ using namespace std;
 const int BIRDS = 500;
 const int WIDTH_LOCATIONS = 6;
 const int HEIGHT_LOCATIONS = 4;
+const int DISPLAY_HEIGHT = 600;
+const int DISPLAY_PERIOD = 1000000 / 25;
 
 const float MAX_INITIAL_SPEED = 0.1;
 const float VISION_RADIUS = 0.25;
@@ -462,58 +464,68 @@ public:
 
 		ctx.spawn(new EventHandler);
 
-		int scale = 600 / HEIGHT_LOCATIONS;
-
 		SDL_WM_SetCaption("ccoids", "ccoids");
-		SDL_Surface *display = SDL_SetVideoMode(WIDTH_LOCATIONS * scale,
-		                                        HEIGHT_LOCATIONS * scale,
+		SDL_Surface *display = SDL_SetVideoMode(WIDTH_LOCATIONS * SCALE,
+		                                        HEIGHT_LOCATIONS * SCALE,
 		                                        32, SDL_DOUBLEBUF);
 
+		Timer tim;
+		TimeVal last = tim.read(ctx);
 		while (true) {
 			bar_.sync(ctx); // Phase 1
 			bar_.sync(ctx); // Phase 2
 
-			boxColor(display, 0, 0, WIDTH_LOCATIONS * scale, HEIGHT_LOCATIONS * scale, BACKGROUND_COLOUR);
-
-			for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
-				vlineColor(display, x * scale, 0, HEIGHT_LOCATIONS * scale, GRID_COLOUR);
+			TimeVal now = tim.read(ctx);
+			if (after(now, last + DISPLAY_PERIOD)) {
+				update(ctx, display);
+				last = now;
 			}
-			for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
-				hlineColor(display, 0, WIDTH_LOCATIONS * scale, y * scale, GRID_COLOUR);
-			}
-
-			for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
-				for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
-					Shared<Location> *loc;
-					{
-						Claim<World> c(ctx, world_);
-						loc = c->get(loc_id(x, y));
-					}
-					Claim<Location> c(ctx, *loc);
-
-					AIMap::const_iterator it, end;
-					c->look(it, end);
-
-					for (; it != end; ++it) {
-						const AgentInfo& info = it->second;
-
-						Vector<float> offset(x, y);
-						Vector<int> p((offset + info.pos_) * (float) scale);
-						filledCircleColor(display, p.x_, p.y_, scale / 50, AGENT_COLOUR);
-						Vector<int> t((offset + info.pos_ + (info.vel_ * -4.0)) * (float) scale);
-						lineColor(display, p.x_, p.y_, t.x_, t.y_, TAIL_COLOUR);
-					}
-				}
-			}
-
-			SDL_UpdateRect(display, 0, 0, 0, 0);
-			SDL_Flip(display);
 
 			bar_.sync(ctx); // Phase 3
 		}
 	}
 
 private:
+	static const int SCALE = DISPLAY_HEIGHT / HEIGHT_LOCATIONS;
+
+	void update(Context& ctx, SDL_Surface *display) {
+		boxColor(display, 0, 0, WIDTH_LOCATIONS * SCALE, HEIGHT_LOCATIONS * SCALE, BACKGROUND_COLOUR);
+
+		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
+			vlineColor(display, x * SCALE, 0, HEIGHT_LOCATIONS * SCALE, GRID_COLOUR);
+		}
+		for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
+			hlineColor(display, 0, WIDTH_LOCATIONS * SCALE, y * SCALE, GRID_COLOUR);
+		}
+
+		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
+			for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
+				Shared<Location> *loc;
+				{
+					Claim<World> c(ctx, world_);
+					loc = c->get(loc_id(x, y));
+				}
+				Claim<Location> c(ctx, *loc);
+
+				AIMap::const_iterator it, end;
+				c->look(it, end);
+
+				for (; it != end; ++it) {
+					const AgentInfo& info = it->second;
+
+					Vector<float> offset(x, y);
+					Vector<int> p((offset + info.pos_) * (float) SCALE);
+					filledCircleColor(display, p.x_, p.y_, SCALE / 50, AGENT_COLOUR);
+					Vector<int> t((offset + info.pos_ + (info.vel_ * -4.0)) * (float) SCALE);
+					lineColor(display, p.x_, p.y_, t.x_, t.y_, TAIL_COLOUR);
+				}
+			}
+		}
+
+		SDL_UpdateRect(display, 0, 0, 0, 0);
+		SDL_Flip(display);
+	}
+
 	Shared<World>& world_;
 	Barrier& bar_;
 };
