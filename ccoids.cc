@@ -364,38 +364,38 @@ public:
 
 			// Move towards centroid of visible flock
 			{
-				Vector<float> a(0.0, 0.0);
+				Vector<float> com(0.0, 0.0);
 				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
-					a += it->pos_;
+					com += it->pos_;
 				}
 				if (seen > 0) {
-					a /= (float) view.size();
+					com /= (float) seen;
 				}
-				accel += a / CENTRE_OF_MASS_FRACTION;
+				accel += com / CENTRE_OF_MASS_FRACTION;
 			}
 
 			// Move away from birds that are too close
 			{
-				Vector<float> a(0.0, 0.0);
+				Vector<float> push(0.0, 0.0);
 				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
 					if (it->pos_.mag2() < (REPULSION_DISTANCE * REPULSION_DISTANCE)) {
-						a -= it->pos_;
+						push -= it->pos_;
 					}
 				}
-				accel += a / REPULSION_FRACTION;
+				accel += push / REPULSION_FRACTION;
 			}
 
 			// Match velocity
 			{
-				Vector<float> a(0.0, 0.0);
+				Vector<float> perceived(0.0, 0.0);
 				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
-					a -= it->vel_;
+					perceived += it->vel_;
 				}
 				if (seen > 0) {
-					a /= (float) view.size();
+					perceived /= (float) seen;
 				}
-				a -= info_.vel_;
-				accel += a / MEAN_VELOCITY_FRACTION;
+				perceived -= info_.vel_;
+				accel += perceived / MEAN_VELOCITY_FRACTION;
 			}
 
 			info_.vel_ += accel / SMOOTH_ACCELERATION;
