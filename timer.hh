@@ -18,4 +18,6 @@ private:
 	TimeVal last_;
 };
 
+bool after(TimeVal a, TimeVal b);
+
 #endif

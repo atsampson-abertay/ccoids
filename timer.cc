@@ -26,3 +26,7 @@ void Timer::delay(Context &ctx, TimeVal period) {
 	last_ = Time_PLUS(last_, period);
 	wait(ctx, last_);
 }
+
+bool after(TimeVal a, TimeVal b) {
+	return (a - b) > 0;
+}
