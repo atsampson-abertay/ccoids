@@ -1,4 +1,8 @@
 // Boids in C++ using CCSP for concurrency.
+// Phase structure:
+// Phase 1  Viewers update
+// Phase 2  Agents look and compute
+// Phase 3  Agents send updates
 
 #include "barrier.hh"
 #include "context.hh"
@@ -17,7 +21,7 @@
 
 using namespace std;
 
-const int BIRDS = 1000;
+const int BIRDS = 500;
 const int WIDTH_LOCATIONS = 6;
 const int HEIGHT_LOCATIONS = 4;
 
@@ -113,12 +117,17 @@ public:
 };
 
 class Location;
+class Viewer;
+typedef vector<AgentInfo> AIVector;
 typedef map<int, AgentInfo> AIMap;
 typedef map<int, Shared<Location> *> LocMap;
+typedef map<int, Vector<float> > VecMap;
+typedef map<int, Shared<Viewer> *> ViewerMap;
 
 class Location {
 public:
-	Location(int id) : id_(id), id_counter_(0) {
+	Location(int id, Shared<Viewer> *viewer)
+		: id_(id), id_counter_(0), viewer_(viewer) {
 	}
 
 	int id() const {
@@ -129,8 +138,9 @@ public:
 		neighbours_[dir] = loc;
 	}
 
-	Shared<Location> *enter(AgentInfo& info) {
+	Shared<Location> *enter(AgentInfo& info, Shared<Viewer> *& viewer) {
 		info.local_id_ = id_counter_++;
+		viewer = viewer_;
 		return update(info);
 	}
 
@@ -166,6 +176,7 @@ public:
 private:
 	int id_;
 	int id_counter_;
+	Shared<Viewer> *viewer_;
 	AIMap infos_;
 	LocMap neighbours_;
 };
@@ -200,6 +211,72 @@ private:
 	LocMap locations_;
 };
 
+class Viewer {
+public:
+	Viewer() {
+	}
+
+	~Viewer() {
+	}
+
+	void location(Vector<float> offset, Shared<Location> *loc) {
+		offsets_.push_back(offset);
+		locations_.push_back(loc);
+	}
+
+	void update(Context& ctx) {
+		infos_.clear();
+		for (int i = 0; i < offsets_.size(); ++i) {
+			Claim<Location> c(ctx, *locations_[i]);
+			AIMap::const_iterator it, end;
+			c->look(it, end);
+
+			for (; it != end; ++it) {
+				AgentInfo info = it->second;
+				info.pos_ += offsets_[i];
+				infos_.push_back(info);
+			}
+		}
+	}
+
+	void look(AIVector::const_iterator& begin,
+	          AIVector::const_iterator& end) {
+		begin = infos_.begin();
+		end = infos_.end();
+	}
+
+private:
+	vector<Vector<float> > offsets_;
+	vector<Shared<Location> *> locations_;
+	AIVector infos_;
+};
+
+// FIXME Generalise into PhaseAdapter
+class ViewerUpdater : public Activity {
+public:
+	ViewerUpdater(Shared<Viewer> *viewer, Barrier& bar)
+		: viewer_(viewer), bar_(bar) {
+	}
+
+	void run(Context& ctx) {
+		while (true) {
+			bar_.sync(ctx); // Phase 1
+
+			{
+				Claim<Viewer> c(ctx, *viewer_);
+				c->update(ctx);
+			}
+
+			bar_.sync(ctx); // Phase 2
+			bar_.sync(ctx); // Phase 3
+		}
+	}
+
+private:
+	Barrier& bar_;
+	Shared<Viewer> *viewer_;
+};
+
 class Boid : public Activity {
 public:
 	Boid(AgentInfo info, Shared<Location> *loc, Barrier& bar)
@@ -212,7 +289,7 @@ public:
 
 			Shared<Location> *new_loc;
 			if (enter) {
-				new_loc = c->enter(info_);
+				new_loc = c->enter(info_, viewer_);
 			} else {
 				new_loc = c->update(info_);
 			}
@@ -231,17 +308,18 @@ public:
 
 		while (true) {
 			bar_.sync(ctx); // Phase 1
+			bar_.sync(ctx); // Phase 2
 
 			typedef vector<AgentInfo> AIVector;
 			AIVector view;
 
 			{
-				Claim<Location> c(ctx, *loc_);
-				AIMap::const_iterator it, end;
+				Claim<Viewer> c(ctx, *viewer_);
+				AIVector::const_iterator it, end;
 				c->look(it, end);
 
 				for (; it != end; ++it) {
-					AgentInfo that = it->second;
+					AgentInfo that = *it;
 
 					if (that.id_ == info_.id_) {
 						// This bird -- ignore
@@ -259,8 +337,6 @@ public:
 					view.push_back(that);
 				}
 			}
-
-			bar_.sync(ctx); // Phase 2
 
 			int seen = view.size();
 
@@ -298,6 +374,7 @@ public:
 				if (seen > 0) {
 					a /= (float) view.size();
 				}
+				a -= info_.vel_;
 				accel += a / MEAN_VELOCITY_FRACTION;
 			}
 
@@ -312,6 +389,8 @@ public:
 
 			info_.pos_ += info_.vel_;
 
+			bar_.sync(ctx); // Phase 3
+
 			do_update(ctx, false);
 		}
 	}
@@ -319,6 +398,7 @@ public:
 private:
 	AgentInfo info_;
 	Shared<Location> *loc_;
+	Shared<Viewer> *viewer_;
 	Barrier& bar_;
 };
 
@@ -371,6 +451,7 @@ public:
 
 		while (true) {
 			bar_.sync(ctx); // Phase 1
+			bar_.sync(ctx); // Phase 2
 
 			boxColor(display, 0, 0, WIDTH_LOCATIONS * scale, HEIGHT_LOCATIONS * scale, BACKGROUND_COLOUR);
 
@@ -405,10 +486,10 @@ public:
 				}
 			}
 
-			bar_.sync(ctx); // Phase 2
-
 			SDL_UpdateRect(display, 0, 0, 0, 0);
 			SDL_Flip(display);
+
+			bar_.sync(ctx); // Phase 3
 		}
 	}
 
@@ -423,12 +504,18 @@ class Ccoids : public Activity {
 
 		Barrier bar(ctx, 1);
 
+		ViewerMap viewers;
+		// FIXME viewers owned by this map
+
 		// Set up the world.
 		// We can do this privately before sharing it.
 		World *w = new World;
 		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
 			for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
-				w->add(ctx, new Shared<Location>(ctx, new Location(loc_id(x, y))));
+				const int id = loc_id(x, y);
+				Shared<Viewer> *viewer = new Shared<Viewer>(ctx, new Viewer);
+				w->add(ctx, new Shared<Location>(ctx, new Location(id, viewer)));
+				viewers[id] = viewer;
 			}
 		}
 		// This is slightly more complicated than in occam, because we
@@ -436,14 +523,18 @@ class Ccoids : public Activity {
 		// spawning the servers -- so we need this second step.
 		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
 			for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
-				Shared<Location> *loc = w->get(loc_id(x, y));
+				int id = loc_id(x, y);
+				Shared<Location> *loc = w->get(id);
 				Claim<Location> c(ctx, *loc);
+				Claim<Viewer> v(ctx, *viewers[id]);
+				v->location(Vector<float>(0.0, 0.0), loc);
 				for (int i = 0; i < NUM_DIRECTIONS; ++i) {
 					Vector<int> dir = DIRECTIONS[i];
 					int nx = (dir.x_ + x + WIDTH_LOCATIONS) % WIDTH_LOCATIONS;
 					int ny = (dir.y_ + y + HEIGHT_LOCATIONS) % HEIGHT_LOCATIONS;
 					Shared<Location> *n = w->get(loc_id(nx, ny));
 					c->neighbour(i, n);
+					v->location(Vector<float>(dir), n);
 				}
 			}
 		}
@@ -451,6 +542,12 @@ class Ccoids : public Activity {
 
 		{
 			Context f(ctx);
+
+			for (ViewerMap::iterator it = viewers.begin();
+			     it != viewers.end();
+			     ++it) {
+				f.spawn(new ViewerUpdater(it->second, bar.enroll()));
+			}
 
 			for (int id = 0; id < BIRDS; id++) {
 				Vector<float> pos(rand_float() * WIDTH_LOCATIONS,
