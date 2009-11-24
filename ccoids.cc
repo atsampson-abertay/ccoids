@@ -27,6 +27,8 @@ const int HEIGHT_LOCATIONS = 4;
 
 const float MAX_INITIAL_SPEED = 0.1;
 const float VISION_RADIUS = 0.25;
+const float VISION_ANGLE = 200.0;
+const float VISION_MAX_ANGULAR_DIFF = ((VISION_ANGLE / 2.0) * M_PI) / 180.0;
 const float MEAN_VELOCITY_FRACTION = 8.0;
 const float CENTRE_OF_MASS_FRACTION = 45.0;
 const float REPULSION_DISTANCE = 0.05;
@@ -96,6 +98,16 @@ int oversign(float v) {
 	} else {
 		return 0;
 	}
+}
+
+static float angle_diff(float a, float b) {
+	float r = a - b;
+	if (r < -M_PI) {
+		r += 2.0 * M_PI;
+	} else if (r > M_PI) {
+		r -= 2.0 * M_PI;
+	}
+	return fabs(r);
 }
 
 const Vector<int> DIRECTIONS[] = {
@@ -318,6 +330,8 @@ public:
 				AIVector::const_iterator it, end;
 				c->look(it, end);
 
+				float my_angle = atan2f(info_.vel_.x_, info_.vel_.y_);
+
 				for (; it != end; ++it) {
 					AgentInfo that = *it;
 
@@ -331,6 +345,12 @@ public:
 
 					if (that.pos_.mag2() > (VISION_RADIUS * VISION_RADIUS)) {
 						// Too far away -- ignore
+						continue;
+					}
+
+					float angle = atan2(that.pos_.x_, that.pos_.y_);
+					if (angle_diff(angle, my_angle) > VISION_MAX_ANGULAR_DIFF) {
+						// Out of field of view -- ignore
 						continue;
 					}
 
@@ -442,7 +462,7 @@ public:
 
 		ctx.spawn(new EventHandler);
 
-		int scale = 500 / HEIGHT_LOCATIONS;
+		int scale = 600 / HEIGHT_LOCATIONS;
 
 		SDL_WM_SetCaption("ccoids", "ccoids");
 		SDL_Surface *display = SDL_SetVideoMode(WIDTH_LOCATIONS * scale,
@@ -480,7 +500,7 @@ public:
 						Vector<float> offset(x, y);
 						Vector<int> p((offset + info.pos_) * (float) scale);
 						filledCircleColor(display, p.x_, p.y_, scale / 50, AGENT_COLOUR);
-						Vector<int> t((offset + info.pos_ + info.vel_) * (float) scale);
+						Vector<int> t((offset + info.pos_ + (info.vel_ * -4.0)) * (float) scale);
 						lineColor(display, p.x_, p.y_, t.x_, t.y_, TAIL_COLOUR);
 					}
 				}
@@ -566,7 +586,7 @@ class Ccoids : public Activity {
 				                          pos.y_ - pos_loc.y_);
 
 				float speed = rand_float() * MAX_INITIAL_SPEED;
-				float dir = rand_float() * 2.0 * M_PI;
+				float dir = rand_float() * 4.0 * M_PI;
 				info.vel_ = Vector<float>(speed * cos(dir),
 				                          speed * sin(dir));
 
