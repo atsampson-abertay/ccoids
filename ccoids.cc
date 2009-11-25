@@ -470,15 +470,14 @@ public:
 		                                        32, SDL_DOUBLEBUF);
 
 		Timer tim;
-		TimeVal last = tim.read(ctx);
+		TimeVal next = tim.read(ctx);
 		while (true) {
 			bar_.sync(ctx); // Phase 1
 			bar_.sync(ctx); // Phase 2
 
-			TimeVal now = tim.read(ctx);
-			if (after(now, last + DISPLAY_PERIOD)) {
+			if (after(tim.read(ctx), next)) {
 				update(ctx, display);
-				last = now;
+				next += DISPLAY_PERIOD;
 			}
 
 			bar_.sync(ctx); // Phase 3
