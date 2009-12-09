@@ -16,4 +16,7 @@ private:
 	void *data_;
 };
 
+// FIXME: PhaseBarrier
+// Use enum as list of phases (actually, why didn't I do this in occam?)
+
 #endif
