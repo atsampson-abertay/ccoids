@@ -60,17 +60,18 @@ const int WIDTH_LOCATIONS = 6;
 const int HEIGHT_LOCATIONS = 4;
 const int DISPLAY_HEIGHT = 600;
 const int DISPLAY_PERIOD = 1000000 / 25;
-
 const float MAX_INITIAL_SPEED = 0.1;
-const float VISION_RADIUS = 0.25;
-const float VISION_ANGLE = 200.0;
-const float VISION_MAX_ANGULAR_DIFF = ((VISION_ANGLE / 2.0) * M_PI) / 180.0;
-const float MEAN_VELOCITY_FRACTION = 8.0;
-const float CENTRE_OF_MASS_FRACTION = 45.0;
-const float REPULSION_DISTANCE = 0.05;
-const float REPULSION_FRACTION = 4.0;
-const float SMOOTH_ACCELERATION = 5.0;
-const float SPEED_LIMIT = 0.03;
+
+struct Settings {
+	float vision_radius;
+	float vision_angle;
+	float mean_velocity_fraction;
+	float centre_of_mass_fraction;
+	float repulsion_distance;
+	float repulsion_fraction;
+	float smooth_acceleration;
+	float speed_limit;
+};
 
 template <typename ELEMENT> class Vector {
 public:
@@ -327,8 +328,8 @@ private:
 
 class Boid : public Activity {
 public:
-	Boid(AgentInfo info, Shared<Location> *loc, Barrier& bar)
-		: info_(info), loc_(loc), bar_(bar) {
+	Boid(AgentInfo info, Shared<Location> *loc, Barrier& bar, Settings& settings)
+		: info_(info), loc_(loc), bar_(bar), settings_(settings) {
 	}
 
 	void do_update(Context &ctx, bool enter) {
@@ -367,6 +368,8 @@ public:
 				c->look(it, end);
 
 				float my_angle = atan2f(info_.vel_.x_, info_.vel_.y_);
+				const float max_r2 = settings_.vision_radius * settings_.vision_radius;
+				const float max_diff = ((settings_.vision_angle / 2.0) * M_PI) / 180.0;
 
 				for (; it != end; ++it) {
 					AgentInfo that = *it;
@@ -379,13 +382,13 @@ public:
 					// Compute relative position
 					that.pos_ -= info_.pos_;
 
-					if (that.pos_.mag2() > (VISION_RADIUS * VISION_RADIUS)) {
+					if (that.pos_.mag2() > max_r2) {
 						// Too far away -- ignore
 						continue;
 					}
 
 					float angle = atan2(that.pos_.x_, that.pos_.y_);
-					if (angle_diff(angle, my_angle) > VISION_MAX_ANGULAR_DIFF) {
+					if (angle_diff(angle, my_angle) > max_diff) {
 						// Out of field of view -- ignore
 						continue;
 					}
@@ -407,18 +410,18 @@ public:
 				if (seen > 0) {
 					com /= (float) seen;
 				}
-				accel += com / CENTRE_OF_MASS_FRACTION;
+				accel += com / settings_.centre_of_mass_fraction;
 			}
 
 			// Move away from birds that are too close
 			{
 				Vector<float> push(0.0, 0.0);
 				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
-					if (it->pos_.mag2() < (REPULSION_DISTANCE * REPULSION_DISTANCE)) {
+					if (it->pos_.mag2() < (settings_.repulsion_distance * settings_.repulsion_distance)) {
 						push -= it->pos_;
 					}
 				}
-				accel += push / REPULSION_FRACTION;
+				accel += push / settings_.repulsion_fraction;
 			}
 
 			// Match velocity
@@ -431,14 +434,14 @@ public:
 					perceived /= (float) seen;
 				}
 				perceived -= info_.vel_;
-				accel += perceived / MEAN_VELOCITY_FRACTION;
+				accel += perceived / settings_.mean_velocity_fraction;
 			}
 
-			info_.vel_ += accel / SMOOTH_ACCELERATION;
+			info_.vel_ += accel / settings_.smooth_acceleration;
 
 			// Apply speed limit
 			float mag = info_.vel_.mag2();
-			const float speed_limit2 = SPEED_LIMIT * SPEED_LIMIT;
+			const float speed_limit2 = settings_.speed_limit * settings_.speed_limit;
 			if (mag > speed_limit2) {
 				info_.vel_ /= mag / speed_limit2;
 			}
@@ -456,6 +459,7 @@ private:
 	Shared<Location> *loc_;
 	Shared<Viewer> *viewer_;
 	Barrier& bar_;
+	Settings& settings_;
 };
 
 // We must have something that handles SDL_QUIT events, else our program won't
@@ -563,11 +567,63 @@ private:
 	Barrier& bar_;
 };
 
+class Control {
+public:
+	Control(float& value, float min, float initial, float max)
+		: value_(value), min_(min), max_(max) {
+		value_ = initial;
+	}
+
+private:
+	float& value_;
+	float min_, max_;
+};
+
+class Controls : public Activity {
+public:
+	Controls(Barrier& bar, Settings& settings)
+		: bar_(bar), settings_(settings) {
+		controls_.push_back(new Control(settings.vision_radius, 0.0f, 0.25f, 1.0f));
+		controls_.push_back(new Control(settings.vision_angle, 0.0f, 200.0f, 360.0f));
+		controls_.push_back(new Control(settings.mean_velocity_fraction, 1.0f, 8.0f, 20.0f));
+		controls_.push_back(new Control(settings.centre_of_mass_fraction, 1.0f, 45.0f, 90.0f));
+		controls_.push_back(new Control(settings.repulsion_distance, 0.0f, 0.05f, 0.5f));
+		controls_.push_back(new Control(settings.repulsion_fraction, 1.0f, 4.0f, 8.0f));
+		controls_.push_back(new Control(settings.smooth_acceleration, 1.0f, 5.0f, 20.0f));
+		controls_.push_back(new Control(settings.speed_limit, 0.0f, 0.03f, 0.2f));
+	}
+
+	~Controls() {
+		// FIXME: use auto_ptr
+		for (ControlVector::iterator it = controls_.begin(); it != controls_.end(); ++it) {
+			delete *it;
+		}
+	}
+
+	void run(Context& ctx) {
+		while (true) {
+			bar_.sync(ctx); // Phase 1
+			bar_.sync(ctx); // Phase 2
+
+			// FIXME: update stuff
+
+			bar_.sync(ctx); // Phase 3
+		}
+	}
+
+private:
+	typedef vector<Control *> ControlVector;
+	ControlVector controls_;
+	Barrier& bar_;
+	Settings& settings_;
+};
+
 class Ccoids : public Activity {
 	void run(Context& ctx) {
 		cout << "ccoids starting" << endl;
 
 		Barrier bar(ctx, 1);
+		Settings settings;
 
 		ViewerMap viewers;
 		// FIXME viewers owned by this map
@@ -608,6 +664,9 @@ class Ccoids : public Activity {
 		{
 			Context f(ctx);
 
+			// Creating the Controls initialises the settings.
+			f.spawn(new Controls(bar.enroll(), settings));
+
 			for (ViewerMap::iterator it = viewers.begin();
 			     it != viewers.end();
 			     ++it) {
@@ -635,7 +694,7 @@ class Ccoids : public Activity {
 				info.vel_ = Vector<float>(speed * cos(dir),
 				                          speed * sin(dir));
 
-				f.spawn(new Boid(info, loc, bar.enroll()));
+				f.spawn(new Boid(info, loc, bar.enroll(), settings));
 			}
 
 			f.spawn(new Display(world, bar));
