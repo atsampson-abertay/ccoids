@@ -529,12 +529,14 @@ private:
 	void update(Context& ctx, SDL_Surface *display) {
 		boxColor(display, 0, 0, WIDTH_LOCATIONS * SCALE, HEIGHT_LOCATIONS * SCALE, BACKGROUND_COLOUR);
 
+#ifdef SHOW_GRID
 		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
 			vlineColor(display, x * SCALE, 0, HEIGHT_LOCATIONS * SCALE, GRID_COLOUR);
 		}
 		for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
 			hlineColor(display, 0, WIDTH_LOCATIONS * SCALE, y * SCALE, GRID_COLOUR);
 		}
+#endif
 
 		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
 			for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
