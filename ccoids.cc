@@ -52,6 +52,7 @@
 #include <stdint.h>
 #include <SDL.h>
 #include <SDL_gfxPrimitives.h>
+#include <portmidi.h>
 
 using namespace std;
 
@@ -574,6 +575,10 @@ public:
 		value_ = initial;
 	}
 
+	void change(float frac) {
+		value_ = min_ + ((max_ - min_) * frac);
+	}
+
 private:
 	float& value_;
 	float min_, max_;
@@ -583,6 +588,36 @@ class Controls : public Activity {
 public:
 	Controls(Barrier& bar, Settings& settings)
 		: bar_(bar), settings_(settings) {
+		if (Pm_Initialize() != pmNoError) {
+			cerr << "Pm_Initialize failed" << endl;
+			exit(1);
+		}
+
+		PmDeviceID use_device = Pm_GetDefaultInputDeviceID();
+		PmDeviceID max = Pm_CountDevices();
+		for (PmDeviceID device = 0; device < max; ++device) {
+			const PmDeviceInfo *devinfo = Pm_GetDeviceInfo(device);
+			if (!devinfo->input) {
+				continue;
+			}
+
+			cout << "Device " << device << ": " << devinfo->interf << ", " << devinfo->name << endl;
+			if (strstr(devinfo->name, "BCF2000 MIDI 1") != NULL) {
+				use_device = device;
+			}
+		}
+
+		if (use_device == pmNoDevice) {
+			cerr << "Didn't find a PortMidi input device" << endl;
+			exit(1);
+		}
+		cout << "Using device " << use_device << endl;
+
+		if (Pm_OpenInput(&stream_, use_device, NULL, MAX_EVENTS, NULL, NULL) != pmNoError) {
+			cerr << "PmOpenInput failed" << endl;
+			exit(1);
+		}
+
 		controls_.push_back(new Control(settings.vision_radius, 0.0f, 0.25f, 1.0f));
 		controls_.push_back(new Control(settings.vision_angle, 0.0f, 200.0f, 360.0f));
 		controls_.push_back(new Control(settings.mean_velocity_fraction, 1.0f, 8.0f, 20.0f));
@@ -605,17 +640,44 @@ public:
 			bar_.sync(ctx); // Phase 1
 			bar_.sync(ctx); // Phase 2
 
-			// FIXME: update stuff
+			while (Pm_Poll(stream_) == TRUE) {
+				PmEvent events[MAX_EVENTS];
+				int count = Pm_Read(stream_, events, MAX_EVENTS);
+
+				for (int i = 0; i < count; ++i) {
+					PmMessage& msg(events[i].message);
+					int status = Pm_MessageStatus(msg);
+					int data1 = Pm_MessageData1(msg);
+					int data2 = Pm_MessageData2(msg);
+
+					if (status == 176 && data1 >= 81 && data1 <= 88) {
+						// Fader change on the BCF2000
+						change_control(data1 - 81, data2 / 127.0);
+					}
+				}
+			}
 
 			bar_.sync(ctx); // Phase 3
 		}
 	}
 
 private:
+	void change_control(int num, float value) {
+		if (num < 0 || num > controls_.size()) {
+			return;
+		}
+
+		cout << "control " << num << " to " << value << endl;
+		controls_[num]->change(value);
+	}
+
 	typedef vector<Control *> ControlVector;
 	ControlVector controls_;
+	PortMidiStream* stream_;
 	Barrier& bar_;
 	Settings& settings_;
+
+	static const int MAX_EVENTS = 1000;
 };
 
 class Ccoids : public Activity {
