@@ -57,9 +57,9 @@
 using namespace std;
 
 const int BIRDS = 500;
-const int WIDTH_LOCATIONS = 6;
-const int HEIGHT_LOCATIONS = 4;
-const int DISPLAY_HEIGHT = 600;
+const int WIDTH_LOCATIONS = 8;
+const int HEIGHT_LOCATIONS = 5;
+const int DISPLAY_HEIGHT = 850;
 const int DISPLAY_PERIOD = 1000000 / 25;
 const float MAX_INITIAL_SPEED = 0.1;
 
