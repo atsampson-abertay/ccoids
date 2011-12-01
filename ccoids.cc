@@ -571,8 +571,12 @@ private:
 class Control {
 public:
 	Control(float& value, float min, float initial, float max)
-		: value_(value), min_(min), max_(max) {
-		value_ = initial;
+		: value_(value), min_(min), initial_(initial), max_(max) {
+		reset();
+	}
+
+	void reset() {
+		value_ = initial_;
 	}
 
 	float get() {
@@ -585,7 +589,7 @@ public:
 
 private:
 	float& value_;
-	float min_, max_;
+	float min_, initial_, max_;
 };
 
 class Controls : public Activity {
@@ -670,6 +674,11 @@ public:
 					if (status == 176 && data1 >= 81 && data1 <= 88) {
 						// Fader change on the BCF2000
 						change_control(data1 - 81, data2 / 127.0);
+					} else if (status == 176 && data1 == 89) {
+						reset_controls();
+						send_controls();
+					} else {
+						cout << "Unhandled MIDI: " << status << ", " << data1 << ", " << data2 << endl;
 					}
 				}
 			}
@@ -686,6 +695,12 @@ private:
 
 		cout << "control " << num << " to " << value << endl;
 		controls_[num]->set(value);
+	}
+
+	void reset_controls() {
+		for (int i = 0; i < controls_.size(); ++i) {
+			controls_[i]->reset();
+		}
 	}
 
 	void send_controls() {
