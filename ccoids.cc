@@ -575,7 +575,11 @@ public:
 		value_ = initial;
 	}
 
-	void change(float frac) {
+	float get() {
+		return (value_ - min_) / (max_ - min_);
+	}
+
+	void set(float frac) {
 		value_ = min_ + ((max_ - min_) * frac);
 	}
 
@@ -593,28 +597,39 @@ public:
 			exit(1);
 		}
 
-		PmDeviceID use_device = Pm_GetDefaultInputDeviceID();
+		PmDeviceID in_device = Pm_GetDefaultInputDeviceID();
+		PmDeviceID out_device = Pm_GetDefaultOutputDeviceID();
 		PmDeviceID max = Pm_CountDevices();
 		for (PmDeviceID device = 0; device < max; ++device) {
 			const PmDeviceInfo *devinfo = Pm_GetDeviceInfo(device);
-			if (!devinfo->input) {
-				continue;
-			}
 
 			cout << "Device " << device << ": " << devinfo->interf << ", " << devinfo->name << endl;
 			if (strstr(devinfo->name, "BCF2000 MIDI 1") != NULL) {
-				use_device = device;
+				if (devinfo->input) {
+					in_device = device;
+				}
+				if (devinfo->output) {
+					out_device = device;
+				}
 			}
 		}
 
-		if (use_device == pmNoDevice) {
+		if (in_device == pmNoDevice) {
 			cerr << "Didn't find a PortMidi input device" << endl;
 			exit(1);
 		}
-		cout << "Using device " << use_device << endl;
+		if (out_device == pmNoDevice) {
+			cerr << "Didn't find a PortMidi output device" << endl;
+			exit(1);
+		}
+		cout << "Using devices " << in_device << ", " << out_device << endl;
 
-		if (Pm_OpenInput(&stream_, use_device, NULL, MAX_EVENTS, NULL, NULL) != pmNoError) {
+		if (Pm_OpenInput(&in_stream_, in_device, NULL, MAX_EVENTS, NULL, NULL) != pmNoError) {
 			cerr << "PmOpenInput failed" << endl;
+			exit(1);
+		}
+		if (Pm_OpenOutput(&out_stream_, out_device, NULL, MAX_EVENTS, NULL, NULL, 0) != pmNoError) {
+			cerr << "PmOpenOutput failed" << endl;
 			exit(1);
 		}
 
@@ -626,6 +641,8 @@ public:
 		controls_.push_back(new Control(settings.repulsion_fraction, 1.0f, 4.0f, 8.0f));
 		controls_.push_back(new Control(settings.smooth_acceleration, 1.0f, 5.0f, 20.0f));
 		controls_.push_back(new Control(settings.speed_limit, 0.0f, 0.03f, 0.2f));
+
+		send_controls();
 	}
 
 	~Controls() {
@@ -640,9 +657,9 @@ public:
 			bar_.sync(ctx); // Phase 1
 			bar_.sync(ctx); // Phase 2
 
-			while (Pm_Poll(stream_) == TRUE) {
+			while (Pm_Poll(in_stream_) == TRUE) {
 				PmEvent events[MAX_EVENTS];
-				int count = Pm_Read(stream_, events, MAX_EVENTS);
+				int count = Pm_Read(in_stream_, events, MAX_EVENTS);
 
 				for (int i = 0; i < count; ++i) {
 					PmMessage& msg(events[i].message);
@@ -668,12 +685,21 @@ private:
 		}
 
 		cout << "control " << num << " to " << value << endl;
-		controls_[num]->change(value);
+		controls_[num]->set(value);
+	}
+
+	void send_controls() {
+		for (int i = 0; i < controls_.size(); ++i) {
+			float value = controls_[i]->get();
+			PmMessage msg = Pm_Message(176, 81 + i, int(value * 127));
+			Pm_WriteShort(out_stream_, 0, msg);
+		}
 	}
 
 	typedef vector<Control *> ControlVector;
 	ControlVector controls_;
-	PortMidiStream* stream_;
+	PortMidiStream* in_stream_;
+	PortMidiStream* out_stream_;
 	Barrier& bar_;
 	Settings& settings_;
 
