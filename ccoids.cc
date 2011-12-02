@@ -486,8 +486,8 @@ public:
 #define rgb(v) (((v) << 8) | 0xFF)
 const Uint32 BACKGROUND_COLOUR = rgb(0);
 const Uint32 GRID_COLOUR = rgb(0x447744);
-const Uint32 AGENT_COLOUR = rgb(0xFF8080);
-const Uint32 TAIL_COLOUR = rgb(0x808080);
+const Uint32 AGENT_COLOUR = rgb(0xFFFFA0);
+const Uint32 TAIL_COLOUR = rgb(0x604030);
 
 class Display : public Activity {
 public:
