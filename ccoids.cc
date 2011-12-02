@@ -46,6 +46,7 @@
 #include <iostream>
 #include <vector>
 #include <map>
+#include <deque>
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
@@ -493,6 +494,13 @@ class Display : public Activity {
 public:
 	Display(Shared<World>& world, Barrier& bar)
 		: world_(world), bar_(bar) {
+		for (int i = 0; i <= INITIAL_SIZE; ++i) {
+			float f = (1.0 * i) / INITIAL_SIZE;
+			int r = 0xFF * f;
+			int g = 0x80 * f;
+			int b = 0xFF * f;
+			palette_[i] = rgb((r << 16) | (g << 8) | b);
+		}
 	}
 
 	void run(Context& ctx) {
@@ -525,6 +533,7 @@ public:
 
 private:
 	static const int SCALE = DISPLAY_HEIGHT / HEIGHT_LOCATIONS;
+	static const int INITIAL_SIZE = SCALE / 50;
 
 	void update(Context& ctx, SDL_Surface *display) {
 		boxColor(display, 0, 0, WIDTH_LOCATIONS * SCALE, HEIGHT_LOCATIONS * SCALE, BACKGROUND_COLOUR);
@@ -538,6 +547,17 @@ private:
 		}
 #endif
 
+		// Decay all the blobs in the deque.
+		for (BlobQueue::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
+			it->radius_ -= 1;
+		}
+
+		// Remove any expired blobs.
+		while ((!blobs_.empty()) && (blobs_.front().radius_ <= 0)) {
+			blobs_.pop_front();
+		}
+
+		// Push all the current blobs on to the end of the deque.
 		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
 			for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
 				Shared<Location> *loc;
@@ -555,16 +575,30 @@ private:
 
 					Vector<float> offset(x, y);
 					Vector<int> p((offset + info.pos_) * (float) SCALE);
-					filledCircleColor(display, p.x_, p.y_, SCALE / 50, AGENT_COLOUR);
-					Vector<int> t((offset + info.pos_ + (info.vel_ * -4.0)) * (float) SCALE);
-					lineColor(display, p.x_, p.y_, t.x_, t.y_, TAIL_COLOUR);
+					blobs_.push_back(Blob(p.x_, p.y_, INITIAL_SIZE));
 				}
 			}
+		}
+
+		// Draw all the blobs in the deque.
+		for (BlobQueue::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
+			filledCircleColor(display, it->x_, it->y_, it->radius_, palette_[it->radius_]);
 		}
 
 		SDL_UpdateRect(display, 0, 0, 0, 0);
 		SDL_Flip(display);
 	}
+
+	struct Blob {
+		Blob(int x, int y, int radius)
+			: x_(x), y_(y), radius_(radius) {
+		}
+		int x_, y_, radius_;
+	};
+	typedef deque<Blob> BlobQueue;
+	BlobQueue blobs_;
+
+	Uint32 palette_[INITIAL_SIZE + 1];
 
 	Shared<World>& world_;
 	Barrier& bar_;
