@@ -40,6 +40,7 @@
 
 #include "barrier.hh"
 #include "context.hh"
+#include "controls.hh"
 #include "maths.hh"
 #include "shared.hh"
 #include "timer.hh"
@@ -56,9 +57,6 @@
 #include <gtkmm/drawingarea.h>
 #include <gtkmm/main.h>
 #include <gtkmm/window.h>
-#ifdef HAVE_LIBPORTMIDI
-#include <portmidi.h>
-#endif
 
 using namespace std;
 
@@ -687,95 +685,21 @@ private:
 	DisplayWindow window_;
 };
 
-class Control {
+// FIXME: I'm not wild about using MI here
+class BoidControls : public Controls, public Activity {
 public:
-	Control(float& value, float min, float initial, float max)
-		: value_(value), min_(min), initial_(initial), max_(max) {
-		reset();
-	}
-
-	void reset() {
-		value_ = initial_;
-	}
-
-	float get() {
-		return (value_ - min_) / (max_ - min_);
-	}
-
-	void set(float frac) {
-		value_ = min_ + ((max_ - min_) * frac);
-	}
-
-private:
-	float& value_;
-	float min_, initial_, max_;
-};
-
-class Controls : public Activity {
-public:
-	Controls(Barrier& bar, Settings& settings)
+	BoidControls(Barrier& bar, Settings& settings)
 		: bar_(bar), settings_(settings) {
-#ifdef HAVE_LIBPORTMIDI
-		if (Pm_Initialize() != pmNoError) {
-			cerr << "Pm_Initialize failed" << endl;
-			exit(1);
-		}
-
-		PmDeviceID in_device = Pm_GetDefaultInputDeviceID();
-		PmDeviceID out_device = Pm_GetDefaultOutputDeviceID();
-		PmDeviceID max = Pm_CountDevices();
-		for (PmDeviceID device = 0; device < max; ++device) {
-			const PmDeviceInfo *devinfo = Pm_GetDeviceInfo(device);
-
-			cout << "Device " << device << ": " << devinfo->interf << ", " << devinfo->name << endl;
-			if (strstr(devinfo->name, "BCF2000 MIDI 1") != NULL
-			    || strstr(devinfo->name, "nanoKONTROL") != NULL) {
-				if (devinfo->input) {
-					in_device = device;
-				}
-				if (devinfo->output) {
-					out_device = device;
-				}
-			}
-		}
-
-		if (in_device == pmNoDevice) {
-			cerr << "Didn't find a PortMidi input device" << endl;
-			exit(1);
-		}
-		if (out_device == pmNoDevice) {
-			cerr << "Didn't find a PortMidi output device" << endl;
-			exit(1);
-		}
-		cout << "Using devices " << in_device << ", " << out_device << endl;
-
-		if (Pm_OpenInput(&in_stream_, in_device, NULL, MAX_EVENTS, NULL, NULL) != pmNoError) {
-			cerr << "PmOpenInput failed" << endl;
-			exit(1);
-		}
-		if (Pm_OpenOutput(&out_stream_, out_device, NULL, MAX_EVENTS, NULL, NULL, 0) != pmNoError) {
-			cerr << "PmOpenOutput failed" << endl;
-			exit(1);
-		}
-#endif
-
-		controls_.push_back(new Control(settings.vision_radius, 0.0f, 0.25f, 1.0f));
-		controls_.push_back(new Control(settings.vision_angle, 0.0f, 200.0f, 360.0f));
-		controls_.push_back(new Control(settings.mean_velocity_fraction, 1.0f, 8.0f, 20.0f));
-		controls_.push_back(new Control(settings.centre_of_mass_fraction, 1.0f, 45.0f, 90.0f));
-		controls_.push_back(new Control(settings.repulsion_distance, 0.0f, 0.05f, 0.5f));
-		controls_.push_back(new Control(settings.repulsion_fraction, 1.0f, 4.0f, 8.0f));
-		controls_.push_back(new Control(settings.smooth_acceleration, 1.0f, 5.0f, 20.0f));
-		controls_.push_back(new Control(settings.speed_limit, 0.0f, 0.03f, 0.2f));
+		add_control(new Control(settings.vision_radius, 0.0f, 0.25f, 1.0f));
+		add_control(new Control(settings.vision_angle, 0.0f, 200.0f, 360.0f));
+		add_control(new Control(settings.mean_velocity_fraction, 1.0f, 8.0f, 20.0f));
+		add_control(new Control(settings.centre_of_mass_fraction, 1.0f, 45.0f, 90.0f));
+		add_control(new Control(settings.repulsion_distance, 0.0f, 0.05f, 0.5f));
+		add_control(new Control(settings.repulsion_fraction, 1.0f, 4.0f, 8.0f));
+		add_control(new Control(settings.smooth_acceleration, 1.0f, 5.0f, 20.0f));
+		add_control(new Control(settings.speed_limit, 0.0f, 0.03f, 0.2f));
 
 		send_controls();
-	}
-
-	~Controls() {
-		// FIXME: use auto_ptr
-		for (ControlVector::iterator it = controls_.begin(); it != controls_.end(); ++it) {
-			delete *it;
-		}
 	}
 
 	void run(Context& ctx) {
@@ -783,74 +707,15 @@ public:
 			bar_.sync(ctx); // Phase 1
 			bar_.sync(ctx); // Phase 2
 
-#ifdef HAVE_LIBPORTMIDI
-			while (Pm_Poll(in_stream_) == TRUE) {
-				PmEvent events[MAX_EVENTS];
-				int count = Pm_Read(in_stream_, events, MAX_EVENTS);
-
-				for (int i = 0; i < count; ++i) {
-					PmMessage& msg(events[i].message);
-					int status = Pm_MessageStatus(msg);
-					int data1 = Pm_MessageData1(msg);
-					int data2 = Pm_MessageData2(msg);
-
-					if (status == 176 && data1 >= 81 && data1 <= 88) {
-						// Fader change on the BCF2000
-						change_control(data1 - 81, data2 / 127.0);
-					} else if (status == 176 && data1 >= 0 && data1 <= 7) {
-						// Fader change on the nanoKONTROL
-						change_control(data1, data2 / 127.0);
-					} else if (status == 176 && data1 == 89) {
-						// Reset button on the BCF2000
-						reset_controls();
-						send_controls();
-					} else {
-						cout << "Unhandled MIDI: " << status << ", " << data1 << ", " << data2 << endl;
-					}
-				}
-			}
-#endif
+			poll_controls();
 
 			bar_.sync(ctx); // Phase 3
 		}
 	}
 
 private:
-	void change_control(int num, float value) {
-		if (num < 0 || num > controls_.size()) {
-			return;
-		}
-
-		cout << "control " << num << " to " << value << endl;
-		controls_[num]->set(value);
-	}
-
-	void reset_controls() {
-		for (int i = 0; i < controls_.size(); ++i) {
-			controls_[i]->reset();
-		}
-	}
-
-	void send_controls() {
-#ifdef HAVE_LIBPORTMIDI
-		for (int i = 0; i < controls_.size(); ++i) {
-			float value = controls_[i]->get();
-			PmMessage msg = Pm_Message(176, 81 + i, int(value * 127));
-			Pm_WriteShort(out_stream_, 0, msg);
-		}
-#endif
-	}
-
-	typedef vector<Control *> ControlVector;
-	ControlVector controls_;
-#ifdef HAVE_LIBPORTMIDI
-	PortMidiStream* in_stream_;
-	PortMidiStream* out_stream_;
-#endif
 	Barrier& bar_;
 	Settings& settings_;
-
-	static const int MAX_EVENTS = 1000;
 };
 
 class Ccoids : public Activity {
@@ -901,7 +766,7 @@ public:
 			Context f(ctx);
 
 			// Creating the Controls initialises the settings.
-			f.spawn(new Controls(bar.enroll(), settings));
+			f.spawn(new BoidControls(bar.enroll(), settings));
 
 			for (ViewerMap::iterator it = viewers.begin();
 			     it != viewers.end();
