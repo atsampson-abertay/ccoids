@@ -468,26 +468,6 @@ private:
 	Settings& settings_;
 };
 
-// We must have something that handles SDL_QUIT events, else our program won't
-// exit on SIGINT...
-class EventHandler : public Activity {
-public:
-	void run(Context& ctx) {
-		Timer tim;
-
-		while (true) {
-			SDL_Event event;
-			while (SDL_PollEvent(&event)) {
-				if (event.type == SDL_QUIT) {
-					exit(0);
-				}
-			}
-
-			tim.delay(ctx, 100000);
-		}
-	}
-};
-
 class Display : public Activity {
 public:
 	Display(Shared<World>& world, Barrier& bar)
@@ -557,6 +537,26 @@ protected:
 	Barrier& bar_;
 };
 
+// We must have something that handles SDL_QUIT events, else our program won't
+// exit on SIGINT...
+class SDLEventProcessor : public Activity {
+public:
+	void run(Context& ctx) {
+		Timer tim;
+
+		while (true) {
+			SDL_Event event;
+			while (SDL_PollEvent(&event)) {
+				if (event.type == SDL_QUIT) {
+					exit(0);
+				}
+			}
+
+			tim.delay(ctx, 100000);
+		}
+	}
+};
+
 class SDLDisplay : public Display {
 public:
 	SDLDisplay(Shared<World>& world, Barrier& bar)
@@ -570,7 +570,7 @@ protected:
 		}
 		atexit(SDL_Quit);
 
-		ctx.spawn(new EventHandler);
+		ctx.spawn(new SDLEventProcessor);
 
 		SDL_WM_SetCaption("ccoids", "ccoids");
 		surface_ = SDL_SetVideoMode(WIDTH_LOCATIONS * SCALE,
@@ -647,6 +647,8 @@ public:
 protected:
 	void init_display(Context& ctx) {
 		window_.show();
+
+		ctx.spawn(new GtkEventProcessor);
 	}
 
 	void draw_display(Context& ctx) {
@@ -991,7 +993,6 @@ public:
 #ifndef USE_GTK_DISPLAY
 			f.spawn(new SDLDisplay(world, bar));
 #else
-			f.spawn(new GtkEventProcessor);
 			f.spawn(new GtkDisplay(world, bar));
 #endif
 		}
