@@ -801,7 +801,8 @@ public:
 			const PmDeviceInfo *devinfo = Pm_GetDeviceInfo(device);
 
 			cout << "Device " << device << ": " << devinfo->interf << ", " << devinfo->name << endl;
-			if (strstr(devinfo->name, "BCF2000 MIDI 1") != NULL) {
+			if (strstr(devinfo->name, "BCF2000 MIDI 1") != NULL
+			    || strstr(devinfo->name, "nanoKONTROL") != NULL) {
 				if (devinfo->input) {
 					in_device = device;
 				}
@@ -869,7 +870,11 @@ public:
 					if (status == 176 && data1 >= 81 && data1 <= 88) {
 						// Fader change on the BCF2000
 						change_control(data1 - 81, data2 / 127.0);
+					} else if (status == 176 && data1 >= 0 && data1 <= 7) {
+						// Fader change on the nanoKONTROL
+						change_control(data1, data2 / 127.0);
 					} else if (status == 176 && data1 == 89) {
+						// Reset button on the BCF2000
 						reset_controls();
 						send_controls();
 					} else {
