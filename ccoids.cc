@@ -612,8 +612,8 @@ protected:
 		for (BlobVector::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
 			Vector<int> pos(it->pos_ * SCALE);
 			int degrees = (it->angle_ * (180 / M_PI)) + 180;
-			int width = 45;
-			int length = (it->speed_ + 0.02) * SCALE * 2.0;
+			int width = 45 - (it->speed_ * 100.0);
+			int length = (1.0 + it->speed_ * 10.0) * (SCALE / 20);
 			filledPieColor(surface_, pos.x_, pos.y_, length, int(degrees) - width, int(degrees) + width, AGENT_COLOUR);
 		}
 
