@@ -518,17 +518,19 @@ protected:
 					Vector<float> offset(x, y);
 					Vector<float> pos(offset + info.pos_);
 					Vector<float> tail(pos + (info.vel_ * -4.0));
-					blobs_.push_back(Blob(pos, tail));
+					float angle = atan2f(info.vel_.y_, info.vel_.x_);
+					blobs_.push_back(Blob(pos, tail, sqrtf(info.vel_.mag2()), angle));
 				}
 			}
 		}
 	}
 
 	struct Blob {
-		Blob(Vector<float> pos, Vector<float> tail)
-			: pos_(pos), tail_(tail) {
+		Blob(Vector<float> pos, Vector<float> tail, float speed, float angle)
+			: pos_(pos), tail_(tail), speed_(speed), angle_(angle) {
 		}
 		Vector<float> pos_, tail_;
+		float speed_, angle_;
 	};
 	typedef vector<Blob> BlobVector;
 	BlobVector blobs_;
@@ -591,6 +593,7 @@ protected:
 		}
 #endif
 
+#ifdef SHOW_LOLLIPOPS
 		// Draw all the tails.
 		for (BlobVector::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
 			Vector<int> pos(it->pos_ * SCALE);
@@ -603,18 +606,26 @@ protected:
 			Vector<int> pos(it->pos_ * SCALE);
 			filledCircleColor(surface_, pos.x_, pos.y_, BLOB_SIZE, AGENT_COLOUR);
 		}
+#endif
+
+		// Draw all the blobs.
+		for (BlobVector::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
+			Vector<int> pos(it->pos_ * SCALE);
+			int degrees = (it->angle_ * (180 / M_PI)) + 180;
+			int width = 45;
+			int length = (it->speed_ + 0.02) * SCALE * 2.0;
+			filledPieColor(surface_, pos.x_, pos.y_, length, int(degrees) - width, int(degrees) + width, AGENT_COLOUR);
+		}
 
 		SDL_UpdateRect(surface_, 0, 0, 0, 0);
 		SDL_Flip(surface_);
 	}
 
 private:
-#define rgb(v) (((v) << 8) | 0xFF)
-	static const Uint32 BACKGROUND_COLOUR = rgb(0);
-	static const Uint32 GRID_COLOUR = rgb(0x447744);
-	static const Uint32 AGENT_COLOUR = rgb(0xFFFFA0);
-	static const Uint32 TAIL_COLOUR = rgb(0x604030);
-#undef rgb
+	static const Uint32 BACKGROUND_COLOUR = 0x000000FF;
+	static const Uint32 GRID_COLOUR = 0x447744FF;
+	static const Uint32 AGENT_COLOUR = 0xFFFFF0A0;
+	static const Uint32 TAIL_COLOUR = 0x604030FF;
 
 	static const int SCALE = DISPLAY_HEIGHT / HEIGHT_LOCATIONS;
 	static const int BLOB_SIZE = SCALE / 50;
