@@ -2,7 +2,7 @@
  *  ccoids.cc - CoSMoS Demos
  *  Adam Sampson
  *
- *  Copyright (C) 2009, Adam Sampson
+ *  Copyright (C) 2009, 2011, Adam Sampson
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -52,7 +52,9 @@
 #include <stdint.h>
 #include <SDL.h>
 #include <SDL_gfxPrimitives.h>
+#ifdef HAVE_LIBPORTMIDI
 #include <portmidi.h>
+#endif
 
 using namespace std;
 
@@ -618,6 +620,7 @@ class Controls : public Activity {
 public:
 	Controls(Barrier& bar, Settings& settings)
 		: bar_(bar), settings_(settings) {
+#ifdef HAVE_LIBPORTMIDI
 		if (Pm_Initialize() != pmNoError) {
 			cerr << "Pm_Initialize failed" << endl;
 			exit(1);
@@ -658,6 +661,7 @@ public:
 			cerr << "PmOpenOutput failed" << endl;
 			exit(1);
 		}
+#endif
 
 		controls_.push_back(new Control(settings.vision_radius, 0.0f, 0.25f, 1.0f));
 		controls_.push_back(new Control(settings.vision_angle, 0.0f, 200.0f, 360.0f));
@@ -683,6 +687,7 @@ public:
 			bar_.sync(ctx); // Phase 1
 			bar_.sync(ctx); // Phase 2
 
+#ifdef HAVE_LIBPORTMIDI
 			while (Pm_Poll(in_stream_) == TRUE) {
 				PmEvent events[MAX_EVENTS];
 				int count = Pm_Read(in_stream_, events, MAX_EVENTS);
@@ -704,6 +709,7 @@ public:
 					}
 				}
 			}
+#endif
 
 			bar_.sync(ctx); // Phase 3
 		}
@@ -726,17 +732,21 @@ private:
 	}
 
 	void send_controls() {
+#ifdef HAVE_LIBPORTMIDI
 		for (int i = 0; i < controls_.size(); ++i) {
 			float value = controls_[i]->get();
 			PmMessage msg = Pm_Message(176, 81 + i, int(value * 127));
 			Pm_WriteShort(out_stream_, 0, msg);
 		}
+#endif
 	}
 
 	typedef vector<Control *> ControlVector;
 	ControlVector controls_;
+#ifdef HAVE_LIBPORTMIDI
 	PortMidiStream* in_stream_;
 	PortMidiStream* out_stream_;
+#endif
 	Barrier& bar_;
 	Settings& settings_;
 
