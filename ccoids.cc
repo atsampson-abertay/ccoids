@@ -52,6 +52,9 @@
 #include <stdint.h>
 #include <SDL.h>
 #include <SDL_gfxPrimitives.h>
+#include <gtkmm/drawingarea.h>
+#include <gtkmm/main.h>
+#include <gtkmm/window.h>
 #ifdef HAVE_LIBPORTMIDI
 #include <portmidi.h>
 #endif
@@ -592,6 +595,93 @@ private:
 	Barrier& bar_;
 };
 
+class GtkEventProcessor : public Activity {
+public:
+	void run(Context& ctx) {
+		Timer tim;
+
+		while (true) {
+			while (Gtk::Main::events_pending()) {
+				Gtk::Main::iteration();
+			}
+
+			// FIXME: Could just yield here?
+			tim.delay(ctx, 10000);
+		}
+	}
+};
+
+class GtkDisplay : public Activity {
+public:
+	GtkDisplay(Shared<World>& world, Barrier& bar)
+		: world_(world), bar_(bar) {
+	}
+
+	void run(Context& ctx) {
+		window_.show();
+
+		while (true) {
+			bar_.sync(ctx); // Phase 1
+			bar_.sync(ctx); // Phase 2
+
+			// update display
+
+			bar_.sync(ctx); // Phase 3
+		}
+	}
+
+private:
+	class DisplayArea : public Gtk::DrawingArea {
+	protected:
+		virtual bool on_expose_event(GdkEventExpose *event) {
+			Glib::RefPtr<Gdk::Window> window = get_window();
+			if (!window) {
+				return true;
+			}
+
+			Cairo::RefPtr<Cairo::Context> cr = window->create_cairo_context();
+
+			Gtk::Allocation allocation = get_allocation();
+			cr->scale(allocation.get_width(),
+			          allocation.get_height());
+
+			// Fill background in green
+			cr->save();
+			cr->set_source_rgb(0.0, 3.0, 0.0);
+			cr->paint();
+			cr->restore();
+
+			return true;
+		}
+	};
+
+	class DisplayWindow : public Gtk::Window {
+	public:
+		DisplayWindow() {
+			set_title("ccoids");
+
+			add(area_);
+
+			show_all();
+		}
+
+	protected:
+		virtual bool on_delete_event(GdkEventAny *event) {
+			// A bit brute-force, but it works...
+			exit(0);
+
+			return false;
+		}
+
+		DisplayArea area_;
+	};
+
+	DisplayWindow window_;
+
+	Shared<World>& world_;
+	Barrier& bar_;
+};
+
 class Control {
 public:
 	Control(float& value, float min, float initial, float max)
@@ -754,6 +844,7 @@ private:
 };
 
 class Ccoids : public Activity {
+public:
 	void run(Context& ctx) {
 		cout << "ccoids starting" << endl;
 
@@ -832,7 +923,12 @@ class Ccoids : public Activity {
 				f.spawn(new Boid(info, loc, bar.enroll(), settings));
 			}
 
+#ifdef USE_SDL_DISPLAY
 			f.spawn(new SDLDisplay(world, bar));
+#else
+			f.spawn(new GtkEventProcessor);
+			f.spawn(new GtkDisplay(world, bar));
+#endif
 		}
 
 		cout << "ccoids finished" << endl;
@@ -840,5 +936,6 @@ class Ccoids : public Activity {
 };
 
 int main(int argc, char *argv[]) {
+	Gtk::Main gtkmain(argc, argv);
 	return initial_activity(argc, argv, new Ccoids);
 }
