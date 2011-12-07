@@ -466,7 +466,7 @@ protected:
 	virtual void draw_display(Context& ctx) {
 		boxColor(surface_, 0, 0, WIDTH_LOCATIONS * SCALE, HEIGHT_LOCATIONS * SCALE, BACKGROUND_COLOUR);
 
-#ifdef SHOW_GRID
+#if 0
 		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
 			vlineColor(surface_, x * SCALE, 0, HEIGHT_LOCATIONS * SCALE, GRID_COLOUR);
 		}
@@ -475,7 +475,7 @@ protected:
 		}
 #endif
 
-#ifdef SHOW_LOLLIPOPS
+#if 1
 		// Draw all the tails.
 		for (BlobVector::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
 			Vector<int> pos(it->pos_ * SCALE);
@@ -490,6 +490,7 @@ protected:
 		}
 #endif
 
+#if 0
 		// Draw all the blobs.
 		for (BlobVector::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
 			Vector<int> pos(it->pos_ * SCALE);
@@ -498,6 +499,7 @@ protected:
 			int length = (1.0 + it->speed_ * 10.0) * (SCALE / 20);
 			filledPieColor(surface_, pos.x_, pos.y_, length, int(degrees) - width, int(degrees) + width, AGENT_COLOUR);
 		}
+#endif
 
 		SDL_UpdateRect(surface_, 0, 0, 0, 0);
 		SDL_Flip(surface_);
@@ -506,8 +508,8 @@ protected:
 private:
 	static const Uint32 BACKGROUND_COLOUR = 0x000000FF;
 	static const Uint32 GRID_COLOUR = 0x447744FF;
-	static const Uint32 AGENT_COLOUR = 0xFFFFF0A0;
-	static const Uint32 TAIL_COLOUR = 0x604030FF;
+	static const Uint32 AGENT_COLOUR = 0xFFFFFFA0;
+	static const Uint32 TAIL_COLOUR = 0xFFFFFF60;
 
 	static const int SCALE = DISPLAY_HEIGHT / HEIGHT_LOCATIONS;
 	static const int BLOB_SIZE = SCALE / 50;
