@@ -491,9 +491,9 @@ const Uint32 GRID_COLOUR = rgb(0x447744);
 const Uint32 AGENT_COLOUR = rgb(0xFFFFA0);
 const Uint32 TAIL_COLOUR = rgb(0x604030);
 
-class Display : public Activity {
+class SDLDisplay : public Activity {
 public:
-	Display(Shared<World>& world, Barrier& bar)
+	SDLDisplay(Shared<World>& world, Barrier& bar)
 		: world_(world), bar_(bar) {
 	}
 
@@ -832,7 +832,7 @@ class Ccoids : public Activity {
 				f.spawn(new Boid(info, loc, bar.enroll(), settings));
 			}
 
-			f.spawn(new Display(world, bar));
+			f.spawn(new SDLDisplay(world, bar));
 		}
 
 		cout << "ccoids finished" << endl;
