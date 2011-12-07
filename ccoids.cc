@@ -40,6 +40,7 @@
 
 #include "barrier.hh"
 #include "context.hh"
+#include "maths.hh"
 #include "shared.hh"
 #include "timer.hh"
 
@@ -78,80 +79,6 @@ struct Settings {
 	float smooth_acceleration;
 	float speed_limit;
 };
-
-template <typename ELEMENT> class Vector {
-public:
-	Vector(ELEMENT x, ELEMENT y) : x_(x), y_(y) {
-	}
-	// FIXME Is this a bad idea?
-	template <typename OTHER>
-	Vector(Vector<OTHER> v) : x_(v.x_), y_(v.y_) {
-	}
-
-	Vector<ELEMENT> operator+(const Vector<ELEMENT>& b) const {
-		return Vector<ELEMENT>(x_ + b.x_, y_ + b.y_);
-	}
-	Vector<ELEMENT>& operator+=(const Vector<ELEMENT> &b) {
-		*this = *this + b;
-		return *this;
-	}
-	Vector<ELEMENT> operator-(const Vector<ELEMENT>& b) const {
-		return Vector<ELEMENT>(x_ - b.x_, y_ - b.y_);
-	}
-	Vector<ELEMENT>& operator-=(const Vector<ELEMENT> &b) {
-		*this = *this - b;
-		return *this;
-	}
-
-	Vector<ELEMENT> operator*(ELEMENT v) const {
-		return Vector<ELEMENT>(x_ * v, y_ * v);
-	}
-	Vector<ELEMENT>& operator*=(ELEMENT v) {
-		*this = *this * v;
-		return *this;
-	}
-	Vector<ELEMENT> operator/(ELEMENT v) const {
-		return Vector<ELEMENT>(x_ / v, y_ / v);
-	}
-	Vector<ELEMENT>& operator/=(ELEMENT v) {
-		*this = *this / v;
-		return *this;
-	}
-
-	bool operator==(const Vector<ELEMENT>& b) const {
-		return (x_ == b.x_) && (y_ == b.y_);
-	}
-
-	ELEMENT mag2() const {
-		return (x_ * x_) + (y_ * y_);
-	}
-
-	ELEMENT x_, y_;
-};
-
-float rand_float() {
-	return rand() / (1.0 * RAND_MAX);
-}
-
-int oversign(float v) {
-	if (v < 0) {
-		return -1;
-	} else if (v > 1) {
-		return 1;
-	} else {
-		return 0;
-	}
-}
-
-static float angle_diff(float a, float b) {
-	float r = a - b;
-	if (r < -M_PI) {
-		r += 2.0 * M_PI;
-	} else if (r > M_PI) {
-		r -= 2.0 * M_PI;
-	}
-	return fabs(r);
-}
 
 const Vector<int> DIRECTIONS[] = {
 	Vector<int>(-1, -1), Vector<int>(0, -1), Vector<int>(1, -1),

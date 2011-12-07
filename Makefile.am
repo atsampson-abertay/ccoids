@@ -8,6 +8,8 @@ ccoids_SOURCES = \
 	ccoids.cc \
 	context.cc \
 	context.hh \
+	maths.cc \
+	maths.hh \
 	shared.cc \
 	shared.hh \
 	timer.cc \
