@@ -638,28 +638,48 @@ public:
 	}
 };
 
-class GtkDisplay : public Activity {
+class GtkDisplay : public Display {
 public:
 	GtkDisplay(Shared<World>& world, Barrier& bar)
-		: world_(world), bar_(bar) {
+		: Display(world, bar), window_(blobs_) {
 	}
 
-	void run(Context& ctx) {
+protected:
+	void init_display(Context& ctx) {
 		window_.show();
+	}
 
-		while (true) {
-			bar_.sync(ctx); // Phase 1
-			bar_.sync(ctx); // Phase 2
-
-			// update display
-
-			bar_.sync(ctx); // Phase 3
-		}
+	void draw_display(Context& ctx) {
+		// FIXME: nothing to do; should send signal to invalidate
 	}
 
 private:
 	class DisplayArea : public Gtk::DrawingArea {
+	public:
+		DisplayArea(const BlobVector& blobs)
+			: blobs_(blobs) {
+			Glib::signal_timeout().connect(sigc::mem_fun(*this, &DisplayArea::on_timeout), 500);
+		}
+
 	protected:
+		virtual bool on_timeout() {
+			// Invalidate the whole window, forcing it to be
+			// redrawn.
+
+			Glib::RefPtr<Gdk::Window> window = get_window();
+			if (!window) {
+				return true;
+			}
+
+			Gtk::Allocation alloc = get_allocation();
+			Gdk::Rectangle rect(0, 0,
+			                    alloc.get_width(),
+			                    alloc.get_height());
+			window->invalidate_rect(rect, false);
+
+			return true;
+		}
+
 		virtual bool on_expose_event(GdkEventExpose *event) {
 			Glib::RefPtr<Gdk::Window> window = get_window();
 			if (!window) {
@@ -668,23 +688,44 @@ private:
 
 			Cairo::RefPtr<Cairo::Context> cr = window->create_cairo_context();
 
-			Gtk::Allocation allocation = get_allocation();
-			cr->scale(allocation.get_width(),
-			          allocation.get_height());
+			Gtk::Allocation alloc = get_allocation();
+			const float display_scale = alloc.get_height();
+			cr->scale(display_scale, display_scale);
 
-			// Fill background in green
+			const float world_scale = 1.0 / HEIGHT_LOCATIONS;
+
+			// Fill background in black
 			cr->save();
-			cr->set_source_rgb(0.0, 3.0, 0.0);
+			cr->set_source_rgb(0.0, 0.0, 0.0);
 			cr->paint();
+			cr->restore();
+
+			// Draw the blobs
+			cr->save();
+			cr->set_line_width(0.02);
+			cr->set_source_rgba(1.0, 1.0, 1.0, 0.5);
+			cr->set_line_cap(Cairo::LINE_CAP_ROUND);
+			// FIXME: should lock blobs
+			for (BlobVector::const_iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
+				const Vector<float>& pos(it->pos_);
+				cr->move_to(pos.x_ * world_scale, pos.y_ * world_scale);
+				const Vector<float>& tail(it->tail_);
+				cr->line_to(tail.x_ * world_scale, tail.y_ * world_scale);
+				cr->stroke();
+			}
 			cr->restore();
 
 			return true;
 		}
+
+	private:
+		const BlobVector& blobs_;
 	};
 
 	class DisplayWindow : public Gtk::Window {
 	public:
-		DisplayWindow() {
+		DisplayWindow(const BlobVector& blobs)
+			: area_(blobs) {
 			set_title("ccoids");
 
 			add(area_);
@@ -704,9 +745,6 @@ private:
 	};
 
 	DisplayWindow window_;
-
-	Shared<World>& world_;
-	Barrier& bar_;
 };
 
 class Control {
@@ -950,7 +988,7 @@ public:
 				f.spawn(new Boid(info, loc, bar.enroll(), settings));
 			}
 
-#ifndef USE_SDL_DISPLAY
+#ifdef USE_SDL_DISPLAY
 			f.spawn(new SDLDisplay(world, bar));
 #else
 			f.spawn(new GtkEventProcessor);
