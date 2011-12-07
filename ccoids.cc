@@ -988,7 +988,7 @@ public:
 				f.spawn(new Boid(info, loc, bar.enroll(), settings));
 			}
 
-#ifdef USE_SDL_DISPLAY
+#ifndef USE_GTK_DISPLAY
 			f.spawn(new SDLDisplay(world, bar));
 #else
 			f.spawn(new GtkEventProcessor);
@@ -1001,6 +1001,8 @@ public:
 };
 
 int main(int argc, char *argv[]) {
+#ifdef USE_GTK_DISPLAY
 	Gtk::Main gtkmain(argc, argv);
+#endif
 	return initial_activity(argc, argv, new Ccoids);
 }
