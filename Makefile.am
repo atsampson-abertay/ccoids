@@ -6,6 +6,7 @@ ccoids_SOURCES = \
 	barrier.cc \
 	barrier.hh \
 	ccoids.cc \
+	ccoids.hh \
 	context.cc \
 	context.hh \
 	controls.cc \

@@ -39,6 +39,7 @@
 // Phase 3  Agents send updates
 
 #include "barrier.hh"
+#include "ccoids.hh"
 #include "context.hh"
 #include "controls.hh"
 #include "maths.hh"
@@ -59,50 +60,6 @@
 #include <gtkmm/window.h>
 
 using namespace std;
-
-const int BIRDS = 500;
-const int WIDTH_LOCATIONS = 8;
-const int HEIGHT_LOCATIONS = 5;
-const int DISPLAY_HEIGHT = 850;
-const int DISPLAY_PERIOD = 1000000 / 25;
-const float MAX_INITIAL_SPEED = 0.1;
-
-struct Settings {
-	float vision_radius;
-	float vision_angle;
-	float mean_velocity_fraction;
-	float centre_of_mass_fraction;
-	float repulsion_distance;
-	float repulsion_fraction;
-	float smooth_acceleration;
-	float speed_limit;
-};
-
-const Vector<int> DIRECTIONS[] = {
-	Vector<int>(-1, -1), Vector<int>(0, -1), Vector<int>(1, -1),
-	Vector<int>(-1,  0),                     Vector<int>(1,  0),
-	Vector<int>(-1,  1), Vector<int>(0,  1), Vector<int>(1,  1)
-};
-const int NUM_DIRECTIONS = 8;
-
-class AgentInfo {
-public:
-	AgentInfo()
-		: id_(-1), local_id_(-1), pos_(0.0, 0.0), vel_(0.0, 0.0) {
-	}
-
-	int id_;
-	int local_id_;
-	Vector<float> pos_, vel_;
-};
-
-class Location;
-class Viewer;
-typedef vector<AgentInfo> AIVector;
-typedef map<int, AgentInfo> AIMap;
-typedef map<int, Shared<Location> *> LocMap;
-typedef map<int, Vector<float> > VecMap;
-typedef map<int, Shared<Viewer> *> ViewerMap;
 
 class Location {
 public:
