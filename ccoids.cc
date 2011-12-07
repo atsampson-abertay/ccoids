@@ -488,30 +488,14 @@ public:
 	}
 };
 
-#define rgb(v) (((v) << 8) | 0xFF)
-const Uint32 BACKGROUND_COLOUR = rgb(0);
-const Uint32 GRID_COLOUR = rgb(0x447744);
-const Uint32 AGENT_COLOUR = rgb(0xFFFFA0);
-const Uint32 TAIL_COLOUR = rgb(0x604030);
-
-class SDLDisplay : public Activity {
+class Display : public Activity {
 public:
-	SDLDisplay(Shared<World>& world, Barrier& bar)
+	Display(Shared<World>& world, Barrier& bar)
 		: world_(world), bar_(bar) {
 	}
 
 	void run(Context& ctx) {
-		if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-			exit(1);
-		}
-		atexit(SDL_Quit);
-
-		ctx.spawn(new EventHandler);
-
-		SDL_WM_SetCaption("ccoids", "ccoids");
-		SDL_Surface *display = SDL_SetVideoMode(WIDTH_LOCATIONS * SCALE,
-		                                        HEIGHT_LOCATIONS * SCALE,
-		                                        32, SDL_DOUBLEBUF);
+		init_display(ctx);
 
 		Timer tim;
 		TimeVal next = tim.read(ctx);
@@ -520,7 +504,9 @@ public:
 			bar_.sync(ctx); // Phase 2
 
 			if (after(tim.read(ctx), next)) {
-				update(ctx, display);
+				fetch_blobs(ctx);
+				draw_display(ctx);
+
 				next += DISPLAY_PERIOD;
 			}
 
@@ -528,24 +514,12 @@ public:
 		}
 	}
 
-private:
-	static const int SCALE = DISPLAY_HEIGHT / HEIGHT_LOCATIONS;
-	static const int BLOB_SIZE = SCALE / 50;
+protected:
+	virtual void init_display(Context& ctx) = 0;
+	virtual void draw_display(Context& ctx) = 0;
 
-	void update(Context& ctx, SDL_Surface *display) {
-		boxColor(display, 0, 0, WIDTH_LOCATIONS * SCALE, HEIGHT_LOCATIONS * SCALE, BACKGROUND_COLOUR);
-
-#ifdef SHOW_GRID
-		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
-			vlineColor(display, x * SCALE, 0, HEIGHT_LOCATIONS * SCALE, GRID_COLOUR);
-		}
-		for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
-			hlineColor(display, 0, WIDTH_LOCATIONS * SCALE, y * SCALE, GRID_COLOUR);
-		}
-#endif
-
-		// Build a list of agents.
-		BlobVector blobs;
+	void fetch_blobs(Context& ctx) {
+		blobs_.clear();
 		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
 			for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
 				Shared<Location> *loc;
@@ -562,37 +536,90 @@ private:
 					const AgentInfo& info = it->second;
 
 					Vector<float> offset(x, y);
-					Vector<int> p((offset + info.pos_) * (float) SCALE);
-					Vector<int> t((offset + info.pos_ + (info.vel_ * -4.0)) * (float) SCALE);
-					blobs.push_back(Blob(p.x_, p.y_, t.x_, t.y_));
+					Vector<float> pos(offset + info.pos_);
+					Vector<float> tail(pos + (info.vel_ * -4.0));
+					blobs_.push_back(Blob(pos, tail));
 				}
 			}
 		}
-
-		// Draw all the tails.
-		for (BlobVector::iterator it = blobs.begin(); it != blobs.end(); ++it) {
-			lineColor(display, it->x_, it->y_, it->tx_, it->ty_, TAIL_COLOUR);
-		}
-
-		// Draw all the blobs.
-		for (BlobVector::iterator it = blobs.begin(); it != blobs.end(); ++it) {
-			filledCircleColor(display, it->x_, it->y_, BLOB_SIZE, AGENT_COLOUR);
-		}
-
-		SDL_UpdateRect(display, 0, 0, 0, 0);
-		SDL_Flip(display);
 	}
 
 	struct Blob {
-		Blob(int x, int y, int tx, int ty)
-			: x_(x), y_(y), tx_(tx), ty_(ty) {
+		Blob(Vector<float> pos, Vector<float> tail)
+			: pos_(pos), tail_(tail) {
 		}
-		int x_, y_, tx_, ty_;
+		Vector<float> pos_, tail_;
 	};
 	typedef vector<Blob> BlobVector;
+	BlobVector blobs_;
 
 	Shared<World>& world_;
 	Barrier& bar_;
+};
+
+class SDLDisplay : public Display {
+public:
+	SDLDisplay(Shared<World>& world, Barrier& bar)
+		: Display(world, bar) {
+	}
+
+protected:
+	virtual void init_display(Context& ctx) {
+		if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+			exit(1);
+		}
+		atexit(SDL_Quit);
+
+		ctx.spawn(new EventHandler);
+
+		SDL_WM_SetCaption("ccoids", "ccoids");
+		surface_ = SDL_SetVideoMode(WIDTH_LOCATIONS * SCALE,
+		                            HEIGHT_LOCATIONS * SCALE,
+		                            32, SDL_DOUBLEBUF);
+
+	}
+
+	virtual void draw_display(Context& ctx) {
+		boxColor(surface_, 0, 0, WIDTH_LOCATIONS * SCALE, HEIGHT_LOCATIONS * SCALE, BACKGROUND_COLOUR);
+
+#ifdef SHOW_GRID
+		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
+			vlineColor(surface_, x * SCALE, 0, HEIGHT_LOCATIONS * SCALE, GRID_COLOUR);
+		}
+		for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
+			hlineColor(surface_, 0, WIDTH_LOCATIONS * SCALE, y * SCALE, GRID_COLOUR);
+		}
+#endif
+
+		// Draw all the tails.
+		for (BlobVector::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
+			Vector<int> pos(it->pos_ * SCALE);
+			Vector<int> tail(it->tail_ * SCALE);
+			lineColor(surface_, pos.x_, pos.y_, tail.x_, tail.y_, TAIL_COLOUR);
+		}
+
+		// Draw all the blobs.
+		for (BlobVector::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
+			Vector<int> pos(it->pos_ * SCALE);
+			filledCircleColor(surface_, pos.x_, pos.y_, BLOB_SIZE, AGENT_COLOUR);
+		}
+
+		SDL_UpdateRect(surface_, 0, 0, 0, 0);
+		SDL_Flip(surface_);
+	}
+
+private:
+#define rgb(v) (((v) << 8) | 0xFF)
+	static const Uint32 BACKGROUND_COLOUR = rgb(0);
+	static const Uint32 GRID_COLOUR = rgb(0x447744);
+	static const Uint32 AGENT_COLOUR = rgb(0xFFFFA0);
+	static const Uint32 TAIL_COLOUR = rgb(0x604030);
+#undef rgb
+
+	static const int SCALE = DISPLAY_HEIGHT / HEIGHT_LOCATIONS;
+	static const int BLOB_SIZE = SCALE / 50;
+
+	SDL_Surface *surface_;
 };
 
 class GtkEventProcessor : public Activity {
@@ -923,7 +950,7 @@ public:
 				f.spawn(new Boid(info, loc, bar.enroll(), settings));
 			}
 
-#ifdef USE_SDL_DISPLAY
+#ifndef USE_SDL_DISPLAY
 			f.spawn(new SDLDisplay(world, bar));
 #else
 			f.spawn(new GtkEventProcessor);
