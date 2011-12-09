@@ -9,6 +9,8 @@ ccoids_SOURCES = \
 	barrier.hh \
 	ccoids.cc \
 	ccoids.hh \
+	colour.cc \
+	colour.hh \
 	context.cc \
 	context.hh \
 	controls.cc \
