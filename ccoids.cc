@@ -399,19 +399,17 @@ protected:
 					Vector<float> offset(x, y);
 					Vector<float> pos(offset + info.pos_);
 					Vector<float> tail(pos + (info.vel_ * -4.0));
-					float angle = atan2f(info.vel_.y_, info.vel_.x_);
-					blobs_.push_back(Blob(pos, tail, sqrtf(info.vel_.mag2()), angle));
+					blobs_.push_back(Blob(pos, tail));
 				}
 			}
 		}
 	}
 
 	struct Blob {
-		Blob(Vector<float> pos, Vector<float> tail, float speed, float angle)
-			: pos_(pos), tail_(tail), speed_(speed), angle_(angle) {
+		Blob(Vector<float> pos, Vector<float> tail)
+			: pos_(pos), tail_(tail) {
 		}
 		Vector<float> pos_, tail_;
-		float speed_, angle_;
 	};
 	typedef vector<Blob> BlobVector;
 	BlobVector blobs_;
@@ -486,17 +484,6 @@ protected:
 		BOOST_FOREACH(Blob& blob, blobs_) {
 			Vector<int> pos(blob.pos_ * SCALE);
 			filledCircleColor(surface_, pos.x_, pos.y_, BLOB_SIZE, AGENT_COLOUR);
-		}
-#endif
-
-#if 0
-		// Draw all the blobs.
-		BOOST_FOREACH(Blob& blob, blobs_) {
-			Vector<int> pos(blob.pos_ * SCALE);
-			int degrees = (blob.angle_ * (180 / M_PI)) + 180;
-			int width = 45 - (blob.speed_ * 100.0);
-			int length = (1.0 + blob.speed_ * 10.0) * (SCALE / 20);
-			filledPieColor(surface_, pos.x_, pos.y_, length, int(degrees) - width, int(degrees) + width, AGENT_COLOUR);
 		}
 #endif
 
