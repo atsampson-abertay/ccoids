@@ -55,9 +55,6 @@
 #include <stdint.h>
 #include <SDL.h>
 #include <SDL_gfxPrimitives.h>
-#include <gtkmm/drawingarea.h>
-#include <gtkmm/main.h>
-#include <gtkmm/window.h>
 #include <boost/foreach.hpp>
 #include <boost/program_options.hpp>
 
@@ -545,133 +542,6 @@ private:
 	int controls_counter_;
 };
 
-class GtkEventProcessor : public Activity {
-public:
-	void run(Context& ctx) {
-		Timer tim;
-
-		while (true) {
-			while (Gtk::Main::events_pending()) {
-				Gtk::Main::iteration();
-			}
-
-			// FIXME: Could just yield here?
-			tim.delay(ctx, 10000);
-		}
-	}
-};
-
-class GtkDisplay : public Display {
-public:
-	GtkDisplay(Shared<World>& world, Barrier& bar)
-		: Display(world, bar), window_(blobs_) {
-	}
-
-protected:
-	void init_display(Context& ctx) {
-		window_.show();
-
-		ctx.spawn(new GtkEventProcessor);
-	}
-
-	void draw_display(Context& ctx) {
-		// FIXME: nothing to do; should send signal to invalidate
-	}
-
-private:
-	class DisplayArea : public Gtk::DrawingArea {
-	public:
-		DisplayArea(const BlobVector& blobs)
-			: blobs_(blobs) {
-			Glib::signal_timeout().connect(sigc::mem_fun(*this, &DisplayArea::on_timeout), 500);
-		}
-
-	protected:
-		virtual bool on_timeout() {
-			// Invalidate the whole window, forcing it to be
-			// redrawn.
-
-			Glib::RefPtr<Gdk::Window> window = get_window();
-			if (!window) {
-				return true;
-			}
-
-			Gtk::Allocation alloc = get_allocation();
-			Gdk::Rectangle rect(0, 0,
-			                    alloc.get_width(),
-			                    alloc.get_height());
-			window->invalidate_rect(rect, false);
-
-			return true;
-		}
-
-		virtual bool on_expose_event(GdkEventExpose *event) {
-			Glib::RefPtr<Gdk::Window> window = get_window();
-			if (!window) {
-				return true;
-			}
-
-			Cairo::RefPtr<Cairo::Context> cr = window->create_cairo_context();
-
-			Gtk::Allocation alloc = get_allocation();
-			const float display_scale = alloc.get_height();
-			cr->scale(display_scale, display_scale);
-
-			const float world_scale = 1.0 / HEIGHT_LOCATIONS;
-
-			// Fill background in black
-			cr->save();
-			cr->set_source_rgb(0.0, 0.0, 0.0);
-			cr->paint();
-			cr->restore();
-
-			// Draw the blobs
-			cr->save();
-			cr->set_line_width(0.02);
-			cr->set_source_rgba(1.0, 1.0, 1.0, 0.5);
-			cr->set_line_cap(Cairo::LINE_CAP_ROUND);
-			// FIXME: should lock blobs
-			BOOST_FOREACH(const Blob& blob, blobs_) {
-				const Vector<float>& pos(blob.pos_);
-				cr->move_to(pos.x_ * world_scale, pos.y_ * world_scale);
-				const Vector<float>& tail(blob.tail_);
-				cr->line_to(tail.x_ * world_scale, tail.y_ * world_scale);
-				cr->stroke();
-			}
-			cr->restore();
-
-			return true;
-		}
-
-	private:
-		const BlobVector& blobs_;
-	};
-
-	class DisplayWindow : public Gtk::Window {
-	public:
-		DisplayWindow(const BlobVector& blobs)
-			: area_(blobs) {
-			set_title("ccoids");
-
-			add(area_);
-
-			show_all();
-		}
-
-	protected:
-		virtual bool on_delete_event(GdkEventAny *event) {
-			// A bit brute-force, but it works...
-			exit(0);
-
-			return false;
-		}
-
-		DisplayArea area_;
-	};
-
-	DisplayWindow window_;
-};
-
 // FIXME: I'm not wild about using MI here
 class BoidControls : public Controls, public Activity {
 public:
@@ -791,11 +661,7 @@ public:
 				f.spawn(new Boid(info, loc, bar.enroll(), settings_));
 			}
 
-#ifndef USE_GTK_DISPLAY
 			f.spawn(new SDLDisplay(world, bar, *controls));
-#else
-			f.spawn(new GtkDisplay(world, bar));
-#endif
 		}
 
 		cout << "ccoids finished" << endl;
@@ -828,10 +694,6 @@ void parse_options(int argc, char *argv[], Settings& settings) {
 }
 
 int main(int argc, char *argv[]) {
-#ifdef USE_GTK_DISPLAY
-	Gtk::Main gtkmain(argc, argv);
-#endif
-
 	Settings settings;
 	parse_options(argc, argv, settings);
 
