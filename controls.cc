@@ -190,6 +190,11 @@ protected:
 		} else if (controller == 89) {
 			// First of the bottom right buttons
 			controls.handle_reset();
+		} else if (controller >= 65 && controller <= 80) {
+			// Buttons at the top
+			controls.handle_select(controller - 65);
+		} else {
+			cout << controller << ":" << value << endl;
 		}
 	}
 };
