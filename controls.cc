@@ -180,9 +180,13 @@ class BCF2000InputDevice : public MIDIInputDevice {
 protected:
 	void handle_cc(Controls& controls,
 	               int channel, int controller, int value) {
+		float scaled = value / 127.0;
 		if (controller >= 81 && controller <= 88) {
 			// Fader
-			controls.handle_set(controller - 81, value / 127.0);
+			controls.handle_set(controller - 81, scaled);
+		} else if (controller >= 1 && controller <= 8) {
+			// Knob
+			controls.handle_set(controller + 7, scaled);
 		} else if (controller == 89) {
 			// First of the bottom right buttons
 			controls.handle_reset();
@@ -197,6 +201,9 @@ public:
 		if (control >= 0 && control <= 7) {
 			// Fader
 			send_cc(0, 81 + control, scaled);
+		} else if (control >= 8 && control <= 15) {
+			// Knob
+			send_cc(0, control - 7, scaled);
 		}
 	}
 };
@@ -205,9 +212,13 @@ class NanoKontrolInputDevice : public MIDIInputDevice {
 protected:
 	void handle_cc(Controls& controls,
 	               int channel, int controller, int value) {
+		float scaled = value / 127.0;
 		if (controller >= 0 && controller <= 7) {
 			// Fader
-			controls.handle_set(controller, value / 127.0);
+			controls.handle_set(controller, scaled);
+		} else if (controller >= 16 && controller <= 23) {
+			// Knob
+			controls.handle_set(controller - 8, scaled);
 		}
 	}
 };

@@ -94,7 +94,7 @@ private:
 	typedef std::vector<DevicePtr> DeviceVector;
 	DeviceVector devices_;
 
-	static const int MAX_CONTROLS = 8;
+	static const int MAX_CONTROLS = 16;
 };
 
 #endif
