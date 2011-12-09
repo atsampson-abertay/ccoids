@@ -36,6 +36,7 @@
 #define CONTROLS_HH
 
 #include <vector>
+#include <boost/shared_ptr.hpp>
 #ifdef HAVE_LIBPORTMIDI
 #include <portmidi.h>
 #endif
@@ -71,10 +72,10 @@ private:
 class Controls {
 public:
 	Controls();
-	~Controls();
 
 	void add_control(Control *control) {
-		controls_.push_back(control);
+		ControlPtr p(control);
+		controls_.push_back(p);
 	}
 	void poll_controls();
 	void reset_controls();
@@ -98,7 +99,8 @@ public:
 private:
 	void change_control(int num, float value);
 
-	typedef std::vector<Control *> ControlVector;
+	typedef boost::shared_ptr<Control> ControlPtr;
+	typedef std::vector<ControlPtr> ControlVector;
 	ControlVector controls_;
 #ifdef HAVE_LIBPORTMIDI
 	PortMidiStream* in_stream_;

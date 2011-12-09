@@ -87,13 +87,6 @@ Controls::Controls()
 #endif
 }
 
-Controls::~Controls() {
-	// FIXME: use auto_ptr
-	for (ControlVector::iterator it = controls_.begin(); it != controls_.end(); ++it) {
-		delete *it;
-	}
-}
-
 void Controls::poll_controls() {
 #ifdef HAVE_LIBPORTMIDI
 	while (Pm_Poll(in_stream_) == TRUE) {
@@ -144,7 +137,7 @@ Controls::StateVector Controls::states() {
 	Controls::StateVector vec;
 
 	for (int i = 0; i < controls_.size(); ++i) {
-		Control *c = controls_[i];
+		ControlPtr& c(controls_[i]);
 		vec.push_back(State(c->initial(), c->get()));
 	}
 
