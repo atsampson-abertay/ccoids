@@ -652,29 +652,8 @@ public:
 				f.spawn(new ViewerUpdater(it->second, bar.enroll()));
 			}
 
-			for (int id = 0; id < config_.initial_birds; id++) {
-				Vector<float> pos(rand_float() * config_.width_locations,
-				                  rand_float() * config_.height_locations);
-				Vector<int> pos_loc(pos);
-
-				Shared<Location> *loc;
-				{
-					Claim<World> c(ctx, world);
-					loc = c->get(loc_id(pos_loc.x_, pos_loc.y_, config_));
-				}
-
-				AgentInfo info;
-				info.id_ = id;
-				info.pos_ = Vector<float>(pos.x_ - pos_loc.x_,
-				                          pos.y_ - pos_loc.y_);
-
-				float speed = rand_float() * config_.max_initial_speed;
-				float dir = rand_float() * 4.0 * M_PI;
-				info.vel_ = Vector<float>(speed * cos(dir),
-				                          speed * sin(dir));
-
-				f.spawn(new Boid(info, loc, bar.enroll(), *params));
-			}
+			add_boids(f, bar, world,
+			          config_.initial_birds, *params);
 
 			f.spawn(new SDLDisplay(world, bar, config_, *controls));
 		}
@@ -683,6 +662,33 @@ public:
 	}
 
 private:
+	void add_boids(Context& ctx, Barrier& bar, Shared<World>& world,
+	               int count, Params& params) {
+		for (int id = 0; id < count; id++) {
+			Vector<float> pos(rand_float() * config_.width_locations,
+					  rand_float() * config_.height_locations);
+			Vector<int> pos_loc(pos);
+
+			Shared<Location> *loc;
+			{
+				Claim<World> c(ctx, world);
+				loc = c->get(loc_id(pos_loc.x_, pos_loc.y_, config_));
+			}
+
+			AgentInfo info;
+			info.id_ = id;
+			info.pos_ = Vector<float>(pos.x_ - pos_loc.x_,
+						  pos.y_ - pos_loc.y_);
+
+			float speed = rand_float() * config_.max_initial_speed;
+			float dir = rand_float() * 4.0 * M_PI;
+			info.vel_ = Vector<float>(speed * cos(dir),
+						  speed * sin(dir));
+
+			ctx.spawn(new Boid(info, loc, bar.enroll(), params));
+		}
+	}
+
 	Config config_;
 };
 
