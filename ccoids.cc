@@ -58,6 +58,7 @@
 #include <gtkmm/drawingarea.h>
 #include <gtkmm/main.h>
 #include <gtkmm/window.h>
+#include <boost/program_options.hpp>
 
 using namespace std;
 
@@ -705,11 +706,14 @@ private:
 
 class Ccoids : public Activity {
 public:
+	Ccoids(const Settings& settings)
+		: settings_(settings) {
+	}
+
 	void run(Context& ctx) {
 		cout << "ccoids starting" << endl;
 
 		Barrier bar(ctx, 1);
-		Settings settings;
 
 		ViewerMap viewers;
 		// FIXME viewers owned by this map
@@ -750,9 +754,10 @@ public:
 		{
 			Context f(ctx);
 
-			// Creating the Controls initialises the settings.
+			// Creating the Controls initialises the tweakable
+			// settings.
 			BoidControls *controls =
-				new BoidControls(bar.enroll(), settings);
+				new BoidControls(bar.enroll(), settings_);
 			f.spawn(controls);
 
 			for (ViewerMap::iterator it = viewers.begin();
@@ -782,7 +787,7 @@ public:
 				info.vel_ = Vector<float>(speed * cos(dir),
 				                          speed * sin(dir));
 
-				f.spawn(new Boid(info, loc, bar.enroll(), settings));
+				f.spawn(new Boid(info, loc, bar.enroll(), settings_));
 			}
 
 #ifndef USE_GTK_DISPLAY
@@ -794,11 +799,40 @@ public:
 
 		cout << "ccoids finished" << endl;
 	}
+
+private:
+	Settings settings_;
 };
+
+void parse_options(int argc, char *argv[], Settings& settings) {
+	namespace opts = boost::program_options;
+
+	opts::options_description desc("Options");
+#define simple(Type, Name, Default) opts::value<Type>(&config.Name)->default_value(Default)
+	desc.add_options()
+		("help", "display this help and exit")
+		;
+#undef simple
+
+	opts::variables_map vars;
+	opts::store(opts::parse_command_line(argc, argv, desc), vars);
+	opts::notify(vars);
+
+	if (vars.count("help")) {
+		/*{{{  show help */
+		std::cout << desc << std::endl;
+		exit(0);
+		/*}}}*/
+	}
+}
 
 int main(int argc, char *argv[]) {
 #ifdef USE_GTK_DISPLAY
 	Gtk::Main gtkmain(argc, argv);
 #endif
-	return initial_activity(argc, argv, new Ccoids);
+
+	Settings settings;
+	parse_options(argc, argv, settings);
+
+	return initial_activity(argc, argv, new Ccoids(settings));
 }

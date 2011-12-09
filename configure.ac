@@ -13,5 +13,10 @@ AC_CHECK_LIB([SDL_gfx], [lineColor], ,
              [AC_MSG_ERROR(SDL_gfx is required)])
 AC_CHECK_LIB([portmidi], [Pm_Initialize])
 
+AX_BOOST_BASE([], [], [AC_MSG_ERROR(Boost is required)])
+AX_BOOST_PROGRAM_OPTIONS
+CPPFLAGS="$BOOST_CPPFLAGS $CPPFLAGS"
+LIBS="$BOOST_LDFLAGS $BOOST_PROGRAM_OPTIONS_LIB $LIBS"
+
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

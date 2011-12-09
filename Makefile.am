@@ -1,3 +1,5 @@
+ACLOCAL_AMFLAGS = -I m4
+
 EXTRA_CPPFLAGS = -g -Wall
 
 bin_PROGRAMS = ccoids
