@@ -51,6 +51,10 @@ public:
 		value_ = initial_;
 	}
 
+	float initial() {
+		return (initial_ - min_) / (max_ - min_);
+	}
+
 	float get() {
 		return (value_ - min_) / (max_ - min_);
 	}
@@ -76,6 +80,21 @@ public:
 	void reset_controls();
 	void send_controls();
 
+	struct State {
+		State(float initial, float value)
+			: initial_(initial), value_(value) {
+		}
+		float initial_, value_;
+	};
+	typedef std::vector<State> StateVector;
+	StateVector states();
+
+	bool changed() {
+		bool old = changed_;
+		changed_ = false;
+		return old;
+	}
+
 private:
 	void change_control(int num, float value);
 
@@ -85,6 +104,8 @@ private:
 	PortMidiStream* in_stream_;
 	PortMidiStream* out_stream_;
 #endif
+
+	bool changed_;
 
 	static const int MAX_EVENTS = 1000;
 };

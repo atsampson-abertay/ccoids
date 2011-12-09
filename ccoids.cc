@@ -443,8 +443,8 @@ public:
 
 class SDLDisplay : public Display {
 public:
-	SDLDisplay(Shared<World>& world, Barrier& bar)
-		: Display(world, bar) {
+	SDLDisplay(Shared<World>& world, Barrier& bar, Controls& controls)
+		: Display(world, bar), controls_(controls) {
 	}
 
 protected:
@@ -501,6 +501,30 @@ protected:
 		}
 #endif
 
+		const int cc_max = 50;
+		if (controls_.changed()) {
+			controls_counter_ = cc_max;
+		}
+
+		if (controls_counter_ > 0) {
+			--controls_counter_;
+			const int alpha = (0xFF * controls_counter_) / cc_max;
+			const Uint32 bg = 0x4040A000 | alpha;
+			const Uint32 marker = 0xA0A0FF00 | alpha;
+			const Uint32 cursor = 0xFFFFFF00 | alpha;
+
+			Controls::StateVector states = controls_.states();
+			for (int i = 0; i < states.size(); ++i) {
+				const int l = (i * 30) + 20;
+				const int r = l + 25;
+				const int t = 20;
+				const int h = 100;
+				boxColor(surface_, l, t, r, t + h, bg);
+				hlineColor(surface_, l, r, t + (h * (1.0 - states[i].initial_)), marker);
+				hlineColor(surface_, l, r, t + (h * (1.0 - states[i].value_)), cursor);
+			}
+		}
+
 		SDL_UpdateRect(surface_, 0, 0, 0, 0);
 		SDL_Flip(surface_);
 	}
@@ -515,6 +539,8 @@ private:
 	static const int BLOB_SIZE = SCALE / 50;
 
 	SDL_Surface *surface_;
+	Controls& controls_;
+	int controls_counter_;
 };
 
 class GtkEventProcessor : public Activity {
@@ -725,7 +751,9 @@ public:
 			Context f(ctx);
 
 			// Creating the Controls initialises the settings.
-			f.spawn(new BoidControls(bar.enroll(), settings));
+			BoidControls *controls =
+				new BoidControls(bar.enroll(), settings);
+			f.spawn(controls);
 
 			for (ViewerMap::iterator it = viewers.begin();
 			     it != viewers.end();
@@ -758,7 +786,7 @@ public:
 			}
 
 #ifndef USE_GTK_DISPLAY
-			f.spawn(new SDLDisplay(world, bar));
+			f.spawn(new SDLDisplay(world, bar, *controls));
 #else
 			f.spawn(new GtkDisplay(world, bar));
 #endif

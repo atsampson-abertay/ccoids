@@ -40,7 +40,8 @@
 
 using namespace std;
 
-Controls::Controls() {
+Controls::Controls()
+	: changed_(false) {
 #ifdef HAVE_LIBPORTMIDI
 	if (Pm_Initialize() != pmNoError) {
 		cerr << "Pm_Initialize failed" << endl;
@@ -139,6 +140,17 @@ void Controls::send_controls() {
 #endif
 }
 
+Controls::StateVector Controls::states() {
+	Controls::StateVector vec;
+
+	for (int i = 0; i < controls_.size(); ++i) {
+		Control *c = controls_[i];
+		vec.push_back(State(c->initial(), c->get()));
+	}
+
+	return vec;
+}
+
 void Controls::change_control(int num, float value) {
 	if (num < 0 || num > controls_.size()) {
 		return;
@@ -146,4 +158,5 @@ void Controls::change_control(int num, float value) {
 
 	cout << "control " << num << " to " << value << endl;
 	controls_[num]->set(value);
+	changed_ = true;
 }
