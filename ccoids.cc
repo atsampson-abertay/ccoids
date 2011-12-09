@@ -559,14 +559,17 @@ class BoidControls : public Controls, public Activity {
 public:
 	BoidControls(Barrier& bar, Params& params)
 		: bar_(bar), params_(params) {
-		add_control(new Control(params_.vision_radius, 0.0f, 0.25f, 1.0f));
-		add_control(new Control(params_.vision_angle, 0.0f, 200.0f, 360.0f));
-		add_control(new Control(params_.mean_velocity_fraction, 1.0f, 8.0f, 20.0f));
-		add_control(new Control(params_.centre_of_mass_fraction, 1.0f, 45.0f, 90.0f));
-		add_control(new Control(params_.repulsion_distance, 0.0f, 0.05f, 0.5f));
-		add_control(new Control(params_.repulsion_fraction, 1.0f, 4.0f, 8.0f));
-		add_control(new Control(params_.smooth_acceleration, 1.0f, 5.0f, 20.0f));
-		add_control(new Control(params_.speed_limit, 0.0f, 0.03f, 0.2f));
+#define control(name, min, init, max) \
+	add_control(new Control(params_.name, min, init, max))
+		control(vision_radius, 0.0f, 0.25f, 1.0f);
+		control(vision_angle, 0.0f, 200.0f, 360.0f);
+		control(mean_velocity_fraction, 1.0f, 8.0f, 20.0f);
+		control(centre_of_mass_fraction, 1.0f, 45.0f, 90.0f);
+		control(repulsion_distance, 0.0f, 0.05f, 0.5f);
+		control(repulsion_fraction, 1.0f, 4.0f, 8.0f);
+		control(smooth_acceleration, 1.0f, 5.0f, 20.0f);
+		control(speed_limit, 0.0f, 0.03f, 0.2f);
+#undef control
 
 		send_controls();
 	}
