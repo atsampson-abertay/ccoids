@@ -38,6 +38,9 @@
 #include <cstring>
 #include <iostream>
 #include <boost/foreach.hpp>
+#ifdef HAVE_LIBPORTMIDI
+#include <portmidi.h>
+#endif
 
 using namespace std;
 
@@ -103,6 +106,114 @@ class ResetAdjuster : public Adjuster {
 };
 /*}}}*/
 
+/*{{{  control devices */
+#ifdef HAVE_LIBPORTMIDI
+class MIDIDevice : public ControlDevice {
+public:
+	MIDIDevice()
+		: stream_(NULL) {
+	}
+
+	// FIXME: destructor
+
+	virtual void open(PmDeviceID id) = 0;
+
+protected:
+	static const int MAX_EVENTS = 1000;
+
+	PortMidiStream* stream_;
+};
+
+class MIDIInputDevice : public MIDIDevice {
+public:
+	void open(PmDeviceID id) {
+		if (Pm_OpenInput(&stream_, id, NULL, MAX_EVENTS, NULL, NULL)
+		    != pmNoError) {
+			cerr << "PmOpenInput failed" << endl;
+			exit(1);
+		}
+	}
+
+	void poll(Controls& controls) {
+		while (Pm_Poll(stream_) == TRUE) {
+			PmEvent events[MAX_EVENTS];
+			int count = Pm_Read(stream_, events, MAX_EVENTS);
+
+			for (int i = 0; i < count; ++i) {
+				PmMessage& msg(events[i].message);
+				int status = Pm_MessageStatus(msg);
+				int data1 = Pm_MessageData1(msg);
+				int data2 = Pm_MessageData2(msg);
+
+				if ((status & 0xF0) == 0xB0) {
+					handle_cc(controls,
+					          status & 0x0F, data1, data2);
+				} else {
+					cout << "Unhandled MIDI: " << status << ", " << data1 << ", " << data2 << endl;
+				}
+			}
+		}
+	}
+
+protected:
+	virtual void handle_cc(Controls& controls,
+	                       int channel, int controller, int value) = 0;
+};
+
+class MIDIOutputDevice : public MIDIDevice {
+protected:
+	void open(PmDeviceID id) {
+		if (Pm_OpenOutput(&stream_, id, NULL, MAX_EVENTS, NULL, NULL, 0)
+		    != pmNoError) {
+			cerr << "PmOpenOutput failed" << endl;
+			exit(1);
+		}
+	}
+
+	void send_cc(int channel, int controller, int value) {
+		PmMessage msg = Pm_Message(0xB0 | channel, controller, value);
+		Pm_WriteShort(stream_, 0, msg);
+	}
+};
+
+class BCF2000InputDevice : public MIDIInputDevice {
+protected:
+	void handle_cc(Controls& controls,
+	               int channel, int controller, int value) {
+		if (controller >= 81 && controller <= 88) {
+			// Fader
+			controls.handle_set(controller - 81, value / 127.0);
+		} else if (controller == 89) {
+			// First of the bottom right buttons
+			controls.handle_reset();
+		}
+	}
+};
+
+class BCF2000OutputDevice : public MIDIOutputDevice {
+public:
+	void send_control(int control, float value) {
+		int scaled = value * 127;
+		if (control >= 0 && control <= 7) {
+			// Fader
+			send_cc(0, 81 + control, scaled);
+		}
+	}
+};
+
+class NanoKontrolInputDevice : public MIDIInputDevice {
+protected:
+	void handle_cc(Controls& controls,
+	               int channel, int controller, int value) {
+		if (controller >= 0 && controller <= 7) {
+			// Fader
+			controls.handle_set(controller, value / 127.0);
+		}
+	}
+};
+#endif
+/*}}}*/
+
 Controls::Controls()
 	: selected_(-1) {
 #ifdef HAVE_LIBPORTMIDI
@@ -117,35 +228,26 @@ Controls::Controls()
 	for (PmDeviceID device = 0; device < max; ++device) {
 		const PmDeviceInfo *devinfo = Pm_GetDeviceInfo(device);
 
+		boost::shared_ptr<MIDIDevice> cd;
+
 		cout << "Device " << device << ": " << devinfo->interf << ", " << devinfo->name << endl;
-		if (strstr(devinfo->name, "BCF2000 MIDI 1") != NULL
-		    || strstr(devinfo->name, "nanoKONTROL") != NULL) {
+		if (strstr(devinfo->name, "BCF2000 MIDI 1") != NULL) {
 			if (devinfo->input) {
-				in_device = device;
-			}
-			if (devinfo->output) {
-				out_device = device;
+				cd.reset(new BCF2000InputDevice());
+			} else if (devinfo->output) {
+				cd.reset(new BCF2000OutputDevice());
 			}
 		}
-	}
+		if (strstr(devinfo->name, "nanoKONTROL") != NULL) {
+			if (devinfo->input) {
+				cd.reset(new NanoKontrolInputDevice());
+			}
+		}
 
-	if (in_device == pmNoDevice) {
-		cerr << "Didn't find a PortMidi input device" << endl;
-		exit(1);
-	}
-	if (out_device == pmNoDevice) {
-		cerr << "Didn't find a PortMidi output device" << endl;
-		exit(1);
-	}
-	cout << "Using devices " << in_device << ", " << out_device << endl;
-
-	if (Pm_OpenInput(&in_stream_, in_device, NULL, MAX_EVENTS, NULL, NULL) != pmNoError) {
-		cerr << "PmOpenInput failed" << endl;
-		exit(1);
-	}
-	if (Pm_OpenOutput(&out_stream_, out_device, NULL, MAX_EVENTS, NULL, NULL, 0) != pmNoError) {
-		cerr << "PmOpenOutput failed" << endl;
-		exit(1);
+		if (cd) {
+			cd->open(device);
+			devices_.push_back(cd);
+		}
 	}
 #endif
 }
@@ -161,37 +263,8 @@ void Controls::poll() {
 	// Ensure we've got something selected, if possible.
 	if (!selected_valid()) handle_select(0);
 
-#ifdef HAVE_LIBPORTMIDI
-	while (Pm_Poll(in_stream_) == TRUE) {
-		PmEvent events[MAX_EVENTS];
-		int count = Pm_Read(in_stream_, events, MAX_EVENTS);
-
-		for (int i = 0; i < count; ++i) {
-			PmMessage& msg(events[i].message);
-			int status = Pm_MessageStatus(msg);
-			int data1 = Pm_MessageData1(msg);
-			int data2 = Pm_MessageData2(msg);
-
-			if (status == 176 && data1 >= 81 && data1 <= 88) {
-				// Fader change on the BCF2000
-				handle_set(data1 - 81, data2 / 127.0);
-			} else if (status == 176 && data1 >= 0 && data1 <= 7) {
-				// Fader change on the nanoKONTROL
-				handle_set(data1, data2 / 127.0);
-			} else if (status == 176 && data1 == 89) {
-				// Reset button on the BCF2000
-				handle_reset();
-			} else {
-				cout << "Unhandled MIDI: " << status << ", " << data1 << ", " << data2 << endl;
-			}
-		}
-	}
-#endif
-}
-
-void Controls::adjust_selected_with(Adjuster& adjuster) {
-	if (selected_valid()) {
-		adjustables_[selected_]->adjust_with(adjuster);
+	BOOST_FOREACH(DevicePtr& cd, devices_) {
+		cd->poll(*this);
 	}
 }
 
@@ -220,9 +293,14 @@ void Controls::handle_select(int num) {
 		adjust_selected_with(adjuster);
 		const float value = adjuster.value();
 
-#ifdef HAVE_LIBPORTMIDI
-		PmMessage msg = Pm_Message(176, 81 + i, int(value * 127));
-		Pm_WriteShort(out_stream_, 0, msg);
-#endif
+		BOOST_FOREACH(DevicePtr& cd, devices_) {
+			cd->send_control(i, value);
+		}
+	}
+}
+
+void Controls::adjust_selected_with(Adjuster& adjuster) {
+	if (selected_valid()) {
+		adjustables_[selected_]->adjust_with(adjuster);
 	}
 }

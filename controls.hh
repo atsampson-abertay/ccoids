@@ -37,9 +37,11 @@
 
 #include <vector>
 #include <boost/shared_ptr.hpp>
-#ifdef HAVE_LIBPORTMIDI
-#include <portmidi.h>
-#endif
+
+class Adjustable;
+class Adjuster;
+class ControlDevice;
+class Controls;
 
 // Visitor interface for adjustable parameters.
 class Adjuster {
@@ -55,21 +57,31 @@ public:
 	virtual void adjust_with(Adjuster& adjust) = 0;
 };
 
+class ControlDevice {
+public:
+	virtual void poll(Controls& controls) {
+	}
+	virtual void send_control(int control, float value) {
+	}
+};
+
 class Controls {
 public:
 	typedef boost::shared_ptr<Adjustable> AdjustablePtr;
+	typedef boost::shared_ptr<ControlDevice> DevicePtr;
 
 	Controls();
 
 	void add_and_init(AdjustablePtr adj);
 	void poll();
 
-private:
-	void adjust_selected_with(Adjuster& adjuster);
-
+	// FIXME: should these be private and friends-ified?
 	void handle_set(int control, float value);
 	void handle_reset();
 	void handle_select(int num);
+
+private:
+	void adjust_selected_with(Adjuster& adjuster);
 
 	typedef std::vector<AdjustablePtr> AdjustableVector;
 	AdjustableVector adjustables_;
@@ -79,12 +91,9 @@ private:
 	}
 	int selected_;
 
-#ifdef HAVE_LIBPORTMIDI
-	PortMidiStream* in_stream_;
-	PortMidiStream* out_stream_;
-#endif
+	typedef std::vector<DevicePtr> DeviceVector;
+	DeviceVector devices_;
 
-	static const int MAX_EVENTS = 1000;
 	static const int MAX_CONTROLS = 8;
 };
 
