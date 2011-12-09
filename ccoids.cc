@@ -366,7 +366,7 @@ public:
 			bar_.sync(ctx); // Phase 2
 
 			if (after(tim.read(ctx), next)) {
-				fetch_blobs(ctx);
+				fetch_agents(ctx);
 				draw_display(ctx);
 
 				next += 1000000 / settings_.display_fps;
@@ -380,10 +380,12 @@ protected:
 	virtual void init_display(Context& ctx) = 0;
 	virtual void draw_display(Context& ctx) = 0;
 
-	void fetch_blobs(Context& ctx) {
-		blobs_.clear();
+	void fetch_agents(Context& ctx) {
+		agents_.clear();
 		for (int x = 0; x < settings_.width_locations; ++x) {
 			for (int y = 0; y < settings_.height_locations; ++y) {
+				Vector<float> offset(x, y);
+
 				Shared<Location> *loc;
 				{
 					Claim<World> c(ctx, world_);
@@ -395,25 +397,16 @@ protected:
 				c->look(it, end);
 
 				for (; it != end; ++it) {
-					const AgentInfo& info = it->second;
+					agents_.push_back(it->second);
+					AgentInfo& info(agents_.back());
 
-					Vector<float> offset(x, y);
-					Vector<float> pos(offset + info.pos_);
-					Vector<float> tail(pos + (info.vel_ * -4.0));
-					blobs_.push_back(Blob(pos, tail));
+					info.pos_ += offset;
 				}
 			}
 		}
 	}
 
-	struct Blob {
-		Blob(Vector<float> pos, Vector<float> tail)
-			: pos_(pos), tail_(tail) {
-		}
-		Vector<float> pos_, tail_;
-	};
-	typedef vector<Blob> BlobVector;
-	BlobVector blobs_;
+	AIVector agents_;
 
 	Shared<World>& world_;
 	Barrier& bar_;
@@ -507,17 +500,17 @@ protected:
 		         BACKGROUND_COLOUR);
 
 		// Draw all the tails.
-		BOOST_FOREACH(Blob& blob, blobs_) {
-			Vector<int> pos(blob.pos_ * scale_);
-			Vector<int> tail(blob.tail_ * scale_);
+		BOOST_FOREACH(AgentInfo& info, agents_) {
+			Vector<int> pos(info.pos_ * scale_);
+			Vector<int> tail((info.pos_ - info.vel_ * 4.0) * scale_);
 			lineColor(surface_, pos.x_, pos.y_, tail.x_, tail.y_, TAIL_COLOUR);
 		}
 
 		// Draw all the blobs.
-		const int blob_size = 0.02 * scale_;
-		BOOST_FOREACH(Blob& blob, blobs_) {
-			Vector<int> pos(blob.pos_ * scale_);
-			filledCircleColor(surface_, pos.x_, pos.y_, blob_size, AGENT_COLOUR);
+		const int boid_size = 0.02 * scale_;
+		BOOST_FOREACH(AgentInfo& info, agents_) {
+			Vector<int> pos(info.pos_ * scale_);
+			filledCircleColor(surface_, pos.x_, pos.y_, boid_size, AGENT_COLOUR);
 		}
 
 		const int cc_max = 50;
