@@ -40,6 +40,7 @@
 
 #include "barrier.hh"
 #include "ccoids.hh"
+#include "colour.hh"
 #include "context.hh"
 #include "controls.hh"
 #include "maths.hh"
@@ -336,6 +337,8 @@ public:
 
 			info_.pos_ += info_.vel_;
 
+			info_.plumage_ = params_.plumage;
+
 			bar_.sync(ctx); // Phase 3
 
 			do_update(ctx, false);
@@ -501,16 +504,24 @@ protected:
 
 		// Draw all the tails.
 		BOOST_FOREACH(AgentInfo& info, agents_) {
+			Colour colour = hsv(info.plumage_, 1.0, 1.0);
+			colour.a = 0.4;
+
 			Vector<int> pos(info.pos_ * scale_);
 			Vector<int> tail((info.pos_ - info.vel_ * 4.0) * scale_);
-			lineColor(surface_, pos.x_, pos.y_, tail.x_, tail.y_, TAIL_COLOUR);
+			lineColor(surface_, pos.x_, pos.y_, tail.x_, tail.y_,
+			          colour.to_uint32());
 		}
 
 		// Draw all the blobs.
 		const int boid_size = 0.02 * scale_;
 		BOOST_FOREACH(AgentInfo& info, agents_) {
+			Colour colour = hsv(info.plumage_, 0.5, 1.0);
+			colour.a = 0.8;
+
 			Vector<int> pos(info.pos_ * scale_);
-			filledCircleColor(surface_, pos.x_, pos.y_, boid_size, AGENT_COLOUR);
+			filledCircleColor(surface_, pos.x_, pos.y_, boid_size,
+			                  colour.to_uint32());
 		}
 
 		// FIXME: reimplement this
@@ -546,8 +557,6 @@ protected:
 
 private:
 	static const Uint32 BACKGROUND_COLOUR = 0x000000FF;
-	static const Uint32 AGENT_COLOUR = 0xFFFFFFA0;
-	static const Uint32 TAIL_COLOUR = 0xFFFFFF60;
 
 	// The width of a world unit, in pixels
 	int scale_;

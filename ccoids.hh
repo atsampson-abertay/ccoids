@@ -65,6 +65,8 @@ public:
 	float smooth_acceleration;
 	float speed_limit;
 
+	float plumage;
+
 	void adjust_with(Adjuster& adjust) {
 		adjust(vision_radius, 0.0f, 0.25f, 1.0f);
 		adjust(vision_angle, 0.0f, 200.0f, 360.0f);
@@ -74,6 +76,8 @@ public:
 		adjust(repulsion_fraction, 1.0f, 4.0f, 8.0f);
 		adjust(smooth_acceleration, 1.0f, 5.0f, 20.0f);
 		adjust(speed_limit, 0.0f, 0.03f, 0.2f);
+
+		adjust(plumage, 0.0f, 0.5f, 1.0f);
 	}
 };
 
@@ -87,12 +91,14 @@ const int NUM_DIRECTIONS = 8;
 class AgentInfo {
 public:
 	AgentInfo()
-		: id_(-1), local_id_(-1), pos_(0.0, 0.0), vel_(0.0, 0.0) {
+		: id_(-1), local_id_(-1), pos_(0.0, 0.0), vel_(0.0, 0.0),
+		  plumage_(0.0) {
 	}
 
 	int id_;
 	int local_id_;
 	Vector<float> pos_, vel_;
+	float plumage_;
 };
 
 class Location;
