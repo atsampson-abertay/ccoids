@@ -643,8 +643,12 @@ public:
 				new BoidControls(bar.enroll());
 			f.spawn(controls);
 
-			boost::shared_ptr<Params> params(new Params);
-			controls->add_and_init(params);
+			std::vector<ParamsPtr> params;
+			for (int i = 0; i < config_.initial_populations; ++i) {
+				ParamsPtr p(new Params);
+				params.push_back(p);
+				controls->add_and_init(p);
+			}
 
 			for (ViewerMap::iterator it = viewers.begin();
 			     it != viewers.end();
@@ -652,8 +656,10 @@ public:
 				f.spawn(new ViewerUpdater(it->second, bar.enroll()));
 			}
 
-			add_boids(f, bar, world,
-			          config_.initial_birds, *params);
+			const int count = config_.initial_birds / params.size();
+			BOOST_FOREACH(ParamsPtr& p, params) {
+				add_boids(f, bar, world, count, *p);
+			}
 
 			f.spawn(new SDLDisplay(world, bar, config_, *controls));
 		}
@@ -662,6 +668,8 @@ public:
 	}
 
 private:
+	typedef boost::shared_ptr<Params> ParamsPtr;
+
 	void add_boids(Context& ctx, Barrier& bar, Shared<World>& world,
 	               int count, Params& params) {
 		for (int id = 0; id < count; id++) {
@@ -701,6 +709,8 @@ void parse_options(int argc, char *argv[], Config& config) {
 		("help", "display this help and exit")
 		("birds", simple(int, initial_birds, 500),
 		 "initial number of birds")
+		("populations", simple(int, initial_populations, 1),
+		 "initial number of populations")
 		("max-initial-speed", simple(float, max_initial_speed, 0.1),
 		 "initial speed of birds")
 		("world-width", simple(int, width_locations, 8),

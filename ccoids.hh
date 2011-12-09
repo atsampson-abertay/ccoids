@@ -46,6 +46,7 @@
 // These can't be changed after startup.
 struct Config {
 	int initial_birds;
+	int initial_populations;
 	float max_initial_speed;
 	int width_locations;
 	int height_locations;
