@@ -424,20 +424,55 @@ protected:
 // exit on SIGINT...
 class SDLEventProcessor : public Activity {
 public:
+	SDLEventProcessor(SDL_Surface *surface)
+		: surface_(surface), fullscreen_(false) {
+	}
+
 	void run(Context& ctx) {
 		Timer tim;
 
 		while (true) {
 			SDL_Event event;
 			while (SDL_PollEvent(&event)) {
-				if (event.type == SDL_QUIT) {
-					exit(0);
-				}
+				handle_event(event);
 			}
 
 			tim.delay(ctx, 100000);
 		}
 	}
+
+private:
+	void handle_event(SDL_Event& event) {
+		if (event.type == SDL_QUIT) {
+			quit();
+		}
+		if (event.type == SDL_KEYDOWN) {
+			SDL_keysym &sym(event.key.keysym);
+			bool alt_down = (sym.mod & KMOD_ALT) != 0;
+
+			if (sym.sym == SDLK_ESCAPE) {
+				quit();
+			}
+			if (sym.sym == SDLK_RETURN && alt_down) {
+				toggle_fullscreen();
+			}
+		}
+	}
+
+	void toggle_fullscreen() {
+		SDL_WM_ToggleFullScreen(surface_);
+		fullscreen_ = !fullscreen_;
+	}
+
+	void quit() {
+		if (fullscreen_) {
+			toggle_fullscreen();
+		}
+		exit(0);
+	}
+
+	SDL_Surface *surface_;
+	bool fullscreen_;
 };
 
 class SDLDisplay : public Display {
@@ -454,8 +489,6 @@ protected:
 		}
 		atexit(SDL_Quit);
 
-		ctx.spawn(new SDLEventProcessor);
-
 		scale_ = settings_.display_height / settings_.height_locations;
 
 		SDL_WM_SetCaption("ccoids", "ccoids");
@@ -463,6 +496,7 @@ protected:
 		                            settings_.height_locations * scale_,
 		                            32, SDL_DOUBLEBUF);
 
+		ctx.spawn(new SDLEventProcessor(surface_));
 	}
 
 	virtual void draw_display(Context& ctx) {
