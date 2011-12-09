@@ -41,14 +41,16 @@
 #include <vector>
 #include <map>
 
-const int BIRDS = 500;
-const int WIDTH_LOCATIONS = 8;
-const int HEIGHT_LOCATIONS = 5;
-const int DISPLAY_HEIGHT = 550;
-const int DISPLAY_PERIOD = 1000000 / 25;
-const float MAX_INITIAL_SPEED = 0.1;
-
 struct Settings {
+	/*{{{  settings that can't change after startup */
+	int initial_birds;
+	float max_initial_speed;
+	int width_locations;
+	int height_locations;
+	int display_height;
+	int display_fps;
+	/*}}}*/
+	/*{{{ runtime-tweakable settings  */
 	float vision_radius;
 	float vision_angle;
 	float mean_velocity_fraction;
@@ -57,6 +59,7 @@ struct Settings {
 	float repulsion_fraction;
 	float smooth_acceleration;
 	float speed_limit;
+	/*}}}*/
 };
 
 const Vector<int> DIRECTIONS[] = {

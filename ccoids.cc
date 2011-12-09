@@ -118,8 +118,9 @@ private:
 };
 
 // FIXME Have a data type for this instead?
-int loc_id(int x, int y) {
-	return (y * WIDTH_LOCATIONS) + x;
+// FIXME Move into Settings
+int loc_id(int x, int y, const Settings& settings) {
+	return (y * settings.width_locations) + x;
 }
 
 class World {
@@ -351,8 +352,8 @@ private:
 
 class Display : public Activity {
 public:
-	Display(Shared<World>& world, Barrier& bar)
-		: world_(world), bar_(bar) {
+	Display(Shared<World>& world, Barrier& bar, Settings& settings)
+		: world_(world), bar_(bar), settings_(settings) {
 	}
 
 	void run(Context& ctx) {
@@ -368,7 +369,7 @@ public:
 				fetch_blobs(ctx);
 				draw_display(ctx);
 
-				next += DISPLAY_PERIOD;
+				next += 1000000 / settings_.display_fps;
 			}
 
 			bar_.sync(ctx); // Phase 3
@@ -381,12 +382,12 @@ protected:
 
 	void fetch_blobs(Context& ctx) {
 		blobs_.clear();
-		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
-			for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
+		for (int x = 0; x < settings_.width_locations; ++x) {
+			for (int y = 0; y < settings_.height_locations; ++y) {
 				Shared<Location> *loc;
 				{
 					Claim<World> c(ctx, world_);
-					loc = c->get(loc_id(x, y));
+					loc = c->get(loc_id(x, y, settings_));
 				}
 				Claim<Location> c(ctx, *loc);
 
@@ -416,6 +417,7 @@ protected:
 
 	Shared<World>& world_;
 	Barrier& bar_;
+	Settings& settings_;
 };
 
 // We must have something that handles SDL_QUIT events, else our program won't
@@ -440,8 +442,9 @@ public:
 
 class SDLDisplay : public Display {
 public:
-	SDLDisplay(Shared<World>& world, Barrier& bar, Controls& controls)
-		: Display(world, bar), controls_(controls) {
+	SDLDisplay(Shared<World>& world, Barrier& bar, Settings& settings,
+	           Controls& controls)
+		: Display(world, bar, settings), controls_(controls) {
 	}
 
 protected:
@@ -453,27 +456,34 @@ protected:
 
 		ctx.spawn(new SDLEventProcessor);
 
+		scale_ = settings_.display_height / settings_.height_locations;
+
 		SDL_WM_SetCaption("ccoids", "ccoids");
-		surface_ = SDL_SetVideoMode(WIDTH_LOCATIONS * SCALE,
-		                            HEIGHT_LOCATIONS * SCALE,
+		surface_ = SDL_SetVideoMode(settings_.width_locations * scale_,
+		                            settings_.height_locations * scale_,
 		                            32, SDL_DOUBLEBUF);
 
 	}
 
 	virtual void draw_display(Context& ctx) {
-		boxColor(surface_, 0, 0, WIDTH_LOCATIONS * SCALE, HEIGHT_LOCATIONS * SCALE, BACKGROUND_COLOUR);
+		boxColor(surface_,
+		         0, 0,
+		         settings_.width_locations * scale_,
+		         settings_.height_locations * scale_,
+		         BACKGROUND_COLOUR);
 
 		// Draw all the tails.
 		BOOST_FOREACH(Blob& blob, blobs_) {
-			Vector<int> pos(blob.pos_ * SCALE);
-			Vector<int> tail(blob.tail_ * SCALE);
+			Vector<int> pos(blob.pos_ * scale_);
+			Vector<int> tail(blob.tail_ * scale_);
 			lineColor(surface_, pos.x_, pos.y_, tail.x_, tail.y_, TAIL_COLOUR);
 		}
 
 		// Draw all the blobs.
+		const int blob_size = 0.02 * scale_;
 		BOOST_FOREACH(Blob& blob, blobs_) {
-			Vector<int> pos(blob.pos_ * SCALE);
-			filledCircleColor(surface_, pos.x_, pos.y_, BLOB_SIZE, AGENT_COLOUR);
+			Vector<int> pos(blob.pos_ * scale_);
+			filledCircleColor(surface_, pos.x_, pos.y_, blob_size, AGENT_COLOUR);
 		}
 
 		const int cc_max = 50;
@@ -509,8 +519,8 @@ private:
 	static const Uint32 AGENT_COLOUR = 0xFFFFFFA0;
 	static const Uint32 TAIL_COLOUR = 0xFFFFFF60;
 
-	static const int SCALE = DISPLAY_HEIGHT / HEIGHT_LOCATIONS;
-	static const int BLOB_SIZE = SCALE / 50;
+	// The width of a world unit, in pixels
+	int scale_;
 
 	SDL_Surface *surface_;
 	Controls& controls_;
@@ -567,9 +577,9 @@ public:
 		// Set up the world.
 		// We can do this privately before sharing it.
 		World *w = new World;
-		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
-			for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
-				const int id = loc_id(x, y);
+		for (int x = 0; x < settings_.width_locations; ++x) {
+			for (int y = 0; y < settings_.height_locations; ++y) {
+				const int id = loc_id(x, y, settings_);
 				Shared<Viewer> *viewer = new Shared<Viewer>(ctx, new Viewer);
 				w->add(ctx, new Shared<Location>(ctx, new Location(id, viewer)));
 				viewers[id] = viewer;
@@ -578,18 +588,18 @@ public:
 		// This is slightly more complicated than in occam, because we
 		// can't create all the interfaces (for the neighbours) before
 		// spawning the servers -- so we need this second step.
-		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
-			for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
-				int id = loc_id(x, y);
+		for (int x = 0; x < settings_.width_locations; ++x) {
+			for (int y = 0; y < settings_.height_locations; ++y) {
+				int id = loc_id(x, y, settings_);
 				Shared<Location> *loc = w->get(id);
 				Claim<Location> c(ctx, *loc);
 				Claim<Viewer> v(ctx, *viewers[id]);
 				v->location(Vector<float>(0.0, 0.0), loc);
 				for (int i = 0; i < NUM_DIRECTIONS; ++i) {
 					Vector<int> dir = DIRECTIONS[i];
-					int nx = (dir.x_ + x + WIDTH_LOCATIONS) % WIDTH_LOCATIONS;
-					int ny = (dir.y_ + y + HEIGHT_LOCATIONS) % HEIGHT_LOCATIONS;
-					Shared<Location> *n = w->get(loc_id(nx, ny));
+					int nx = (dir.x_ + x + settings_.width_locations) % settings_.width_locations;
+					int ny = (dir.y_ + y + settings_.height_locations) % settings_.height_locations;
+					Shared<Location> *n = w->get(loc_id(nx, ny, settings_));
 					c->neighbour(i, n);
 					v->location(Vector<float>(dir), n);
 				}
@@ -612,15 +622,15 @@ public:
 				f.spawn(new ViewerUpdater(it->second, bar.enroll()));
 			}
 
-			for (int id = 0; id < BIRDS; id++) {
-				Vector<float> pos(rand_float() * WIDTH_LOCATIONS,
-				                  rand_float() * HEIGHT_LOCATIONS);
+			for (int id = 0; id < settings_.initial_birds; id++) {
+				Vector<float> pos(rand_float() * settings_.width_locations,
+				                  rand_float() * settings_.height_locations);
 				Vector<int> pos_loc(pos);
 
 				Shared<Location> *loc;
 				{
 					Claim<World> c(ctx, world);
-					loc = c->get(loc_id(pos_loc.x_, pos_loc.y_));
+					loc = c->get(loc_id(pos_loc.x_, pos_loc.y_, settings_));
 				}
 
 				AgentInfo info;
@@ -628,7 +638,7 @@ public:
 				info.pos_ = Vector<float>(pos.x_ - pos_loc.x_,
 				                          pos.y_ - pos_loc.y_);
 
-				float speed = rand_float() * MAX_INITIAL_SPEED;
+				float speed = rand_float() * settings_.max_initial_speed;
 				float dir = rand_float() * 4.0 * M_PI;
 				info.vel_ = Vector<float>(speed * cos(dir),
 				                          speed * sin(dir));
@@ -636,7 +646,7 @@ public:
 				f.spawn(new Boid(info, loc, bar.enroll(), settings_));
 			}
 
-			f.spawn(new SDLDisplay(world, bar, *controls));
+			f.spawn(new SDLDisplay(world, bar, settings_, *controls));
 		}
 
 		cout << "ccoids finished" << endl;
@@ -650,9 +660,21 @@ void parse_options(int argc, char *argv[], Settings& settings) {
 	namespace opts = boost::program_options;
 
 	opts::options_description desc("Options");
-#define simple(Type, Name, Default) opts::value<Type>(&config.Name)->default_value(Default)
+#define simple(Type, Name, Default) opts::value<Type>(&settings.Name)->default_value(Default)
 	desc.add_options()
 		("help", "display this help and exit")
+		("birds", simple(int, initial_birds, 500),
+		 "initial number of birds")
+		("max-initial-speed", simple(float, max_initial_speed, 0.1),
+		 "initial speed of birds")
+		("world-width", simple(int, width_locations, 8),
+		 "width of world in units")
+		("world-height", simple(int, height_locations, 5),
+		 "height of world in units")
+		("display-height", simple(int, display_height, 550),
+		 "height of display window")
+		("display-fps", simple(int, display_fps, 25),
+		 "frames per second to display")
 		;
 #undef simple
 
