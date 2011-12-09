@@ -463,16 +463,6 @@ protected:
 	virtual void draw_display(Context& ctx) {
 		boxColor(surface_, 0, 0, WIDTH_LOCATIONS * SCALE, HEIGHT_LOCATIONS * SCALE, BACKGROUND_COLOUR);
 
-#if 0
-		for (int x = 0; x < WIDTH_LOCATIONS; ++x) {
-			vlineColor(surface_, x * SCALE, 0, HEIGHT_LOCATIONS * SCALE, GRID_COLOUR);
-		}
-		for (int y = 0; y < HEIGHT_LOCATIONS; ++y) {
-			hlineColor(surface_, 0, WIDTH_LOCATIONS * SCALE, y * SCALE, GRID_COLOUR);
-		}
-#endif
-
-#if 1
 		// Draw all the tails.
 		BOOST_FOREACH(Blob& blob, blobs_) {
 			Vector<int> pos(blob.pos_ * SCALE);
@@ -485,7 +475,6 @@ protected:
 			Vector<int> pos(blob.pos_ * SCALE);
 			filledCircleColor(surface_, pos.x_, pos.y_, BLOB_SIZE, AGENT_COLOUR);
 		}
-#endif
 
 		const int cc_max = 50;
 		if (controls_.changed()) {
@@ -517,7 +506,6 @@ protected:
 
 private:
 	static const Uint32 BACKGROUND_COLOUR = 0x000000FF;
-	static const Uint32 GRID_COLOUR = 0x447744FF;
 	static const Uint32 AGENT_COLOUR = 0xFFFFFFA0;
 	static const Uint32 TAIL_COLOUR = 0xFFFFFF60;
 
