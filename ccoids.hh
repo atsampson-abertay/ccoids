@@ -41,16 +41,19 @@
 #include <vector>
 #include <map>
 
-struct Settings {
-	/*{{{  settings that can't change after startup */
+// Settings for the whole simulation.
+// These can't be changed after startup.
+struct Config {
 	int initial_birds;
 	float max_initial_speed;
 	int width_locations;
 	int height_locations;
 	int display_height;
 	int display_fps;
-	/*}}}*/
-	/*{{{ runtime-tweakable settings  */
+};
+
+// Parameters for a boid's behaviour.
+struct Params {
 	float vision_radius;
 	float vision_angle;
 	float mean_velocity_fraction;
@@ -59,7 +62,6 @@ struct Settings {
 	float repulsion_fraction;
 	float smooth_acceleration;
 	float speed_limit;
-	/*}}}*/
 };
 
 const Vector<int> DIRECTIONS[] = {

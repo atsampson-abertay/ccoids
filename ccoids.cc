@@ -118,9 +118,9 @@ private:
 };
 
 // FIXME Have a data type for this instead?
-// FIXME Move into Settings
-int loc_id(int x, int y, const Settings& settings) {
-	return (y * settings.width_locations) + x;
+// FIXME Move into Config
+int loc_id(int x, int y, const Config& config) {
+	return (y * config.width_locations) + x;
 }
 
 class World {
@@ -216,8 +216,8 @@ private:
 
 class Boid : public Activity {
 public:
-	Boid(AgentInfo info, Shared<Location> *loc, Barrier& bar, Settings& settings)
-		: info_(info), loc_(loc), bar_(bar), settings_(settings) {
+	Boid(AgentInfo info, Shared<Location> *loc, Barrier& bar, Params& params)
+		: info_(info), loc_(loc), bar_(bar), params_(params) {
 	}
 
 	void do_update(Context &ctx, bool enter) {
@@ -256,8 +256,8 @@ public:
 				c->look(it, end);
 
 				float my_angle = atan2f(info_.vel_.x_, info_.vel_.y_);
-				const float max_r2 = settings_.vision_radius * settings_.vision_radius;
-				const float max_diff = ((settings_.vision_angle / 2.0) * M_PI) / 180.0;
+				const float max_r2 = params_.vision_radius * params_.vision_radius;
+				const float max_diff = ((params_.vision_angle / 2.0) * M_PI) / 180.0;
 
 				for (; it != end; ++it) {
 					AgentInfo that = *it;
@@ -298,18 +298,18 @@ public:
 				if (seen > 0) {
 					com /= (float) seen;
 				}
-				accel += com / settings_.centre_of_mass_fraction;
+				accel += com / params_.centre_of_mass_fraction;
 			}
 
 			// Move away from birds that are too close
 			{
 				Vector<float> push(0.0, 0.0);
 				BOOST_FOREACH(AgentInfo &info, view) {
-					if (info.pos_.mag2() < (settings_.repulsion_distance * settings_.repulsion_distance)) {
+					if (info.pos_.mag2() < (params_.repulsion_distance * params_.repulsion_distance)) {
 						push -= info.pos_;
 					}
 				}
-				accel += push / settings_.repulsion_fraction;
+				accel += push / params_.repulsion_fraction;
 			}
 
 			// Match velocity
@@ -322,14 +322,14 @@ public:
 					perceived /= (float) seen;
 				}
 				perceived -= info_.vel_;
-				accel += perceived / settings_.mean_velocity_fraction;
+				accel += perceived / params_.mean_velocity_fraction;
 			}
 
-			info_.vel_ += accel / settings_.smooth_acceleration;
+			info_.vel_ += accel / params_.smooth_acceleration;
 
 			// Apply speed limit
 			float mag = info_.vel_.mag2();
-			const float speed_limit2 = settings_.speed_limit * settings_.speed_limit;
+			const float speed_limit2 = params_.speed_limit * params_.speed_limit;
 			if (mag > speed_limit2) {
 				info_.vel_ /= mag / speed_limit2;
 			}
@@ -347,13 +347,13 @@ private:
 	Shared<Location> *loc_;
 	Shared<Viewer> *viewer_;
 	Barrier& bar_;
-	Settings& settings_;
+	Params& params_;
 };
 
 class Display : public Activity {
 public:
-	Display(Shared<World>& world, Barrier& bar, Settings& settings)
-		: world_(world), bar_(bar), settings_(settings) {
+	Display(Shared<World>& world, Barrier& bar, Config& config)
+		: world_(world), bar_(bar), config_(config) {
 	}
 
 	void run(Context& ctx) {
@@ -369,7 +369,7 @@ public:
 				fetch_agents(ctx);
 				draw_display(ctx);
 
-				next += 1000000 / settings_.display_fps;
+				next += 1000000 / config_.display_fps;
 			}
 
 			bar_.sync(ctx); // Phase 3
@@ -382,14 +382,14 @@ protected:
 
 	void fetch_agents(Context& ctx) {
 		agents_.clear();
-		for (int x = 0; x < settings_.width_locations; ++x) {
-			for (int y = 0; y < settings_.height_locations; ++y) {
+		for (int x = 0; x < config_.width_locations; ++x) {
+			for (int y = 0; y < config_.height_locations; ++y) {
 				Vector<float> offset(x, y);
 
 				Shared<Location> *loc;
 				{
 					Claim<World> c(ctx, world_);
-					loc = c->get(loc_id(x, y, settings_));
+					loc = c->get(loc_id(x, y, config_));
 				}
 				Claim<Location> c(ctx, *loc);
 
@@ -410,7 +410,7 @@ protected:
 
 	Shared<World>& world_;
 	Barrier& bar_;
-	Settings& settings_;
+	Config& config_;
 };
 
 // We must have something that handles SDL_QUIT events, else our program won't
@@ -470,9 +470,9 @@ private:
 
 class SDLDisplay : public Display {
 public:
-	SDLDisplay(Shared<World>& world, Barrier& bar, Settings& settings,
+	SDLDisplay(Shared<World>& world, Barrier& bar, Config& config,
 	           Controls& controls)
-		: Display(world, bar, settings), controls_(controls) {
+		: Display(world, bar, config), controls_(controls) {
 	}
 
 protected:
@@ -482,11 +482,11 @@ protected:
 		}
 		atexit(SDL_Quit);
 
-		scale_ = settings_.display_height / settings_.height_locations;
+		scale_ = config_.display_height / config_.height_locations;
 
 		SDL_WM_SetCaption("ccoids", "ccoids");
-		surface_ = SDL_SetVideoMode(settings_.width_locations * scale_,
-		                            settings_.height_locations * scale_,
+		surface_ = SDL_SetVideoMode(config_.width_locations * scale_,
+		                            config_.height_locations * scale_,
 		                            32, SDL_DOUBLEBUF);
 
 		ctx.spawn(new SDLEventProcessor(surface_));
@@ -495,8 +495,8 @@ protected:
 	virtual void draw_display(Context& ctx) {
 		boxColor(surface_,
 		         0, 0,
-		         settings_.width_locations * scale_,
-		         settings_.height_locations * scale_,
+		         config_.width_locations * scale_,
+		         config_.height_locations * scale_,
 		         BACKGROUND_COLOUR);
 
 		// Draw all the tails.
@@ -557,16 +557,16 @@ private:
 // FIXME: I'm not wild about using MI here
 class BoidControls : public Controls, public Activity {
 public:
-	BoidControls(Barrier& bar, Settings& settings)
-		: bar_(bar), settings_(settings) {
-		add_control(new Control(settings.vision_radius, 0.0f, 0.25f, 1.0f));
-		add_control(new Control(settings.vision_angle, 0.0f, 200.0f, 360.0f));
-		add_control(new Control(settings.mean_velocity_fraction, 1.0f, 8.0f, 20.0f));
-		add_control(new Control(settings.centre_of_mass_fraction, 1.0f, 45.0f, 90.0f));
-		add_control(new Control(settings.repulsion_distance, 0.0f, 0.05f, 0.5f));
-		add_control(new Control(settings.repulsion_fraction, 1.0f, 4.0f, 8.0f));
-		add_control(new Control(settings.smooth_acceleration, 1.0f, 5.0f, 20.0f));
-		add_control(new Control(settings.speed_limit, 0.0f, 0.03f, 0.2f));
+	BoidControls(Barrier& bar, Params& params)
+		: bar_(bar), params_(params) {
+		add_control(new Control(params_.vision_radius, 0.0f, 0.25f, 1.0f));
+		add_control(new Control(params_.vision_angle, 0.0f, 200.0f, 360.0f));
+		add_control(new Control(params_.mean_velocity_fraction, 1.0f, 8.0f, 20.0f));
+		add_control(new Control(params_.centre_of_mass_fraction, 1.0f, 45.0f, 90.0f));
+		add_control(new Control(params_.repulsion_distance, 0.0f, 0.05f, 0.5f));
+		add_control(new Control(params_.repulsion_fraction, 1.0f, 4.0f, 8.0f));
+		add_control(new Control(params_.smooth_acceleration, 1.0f, 5.0f, 20.0f));
+		add_control(new Control(params_.speed_limit, 0.0f, 0.03f, 0.2f));
 
 		send_controls();
 	}
@@ -584,13 +584,13 @@ public:
 
 private:
 	Barrier& bar_;
-	Settings& settings_;
+	Params& params_;
 };
 
 class Ccoids : public Activity {
 public:
-	Ccoids(const Settings& settings)
-		: settings_(settings) {
+	Ccoids(const Config& config)
+		: config_(config) {
 	}
 
 	void run(Context& ctx) {
@@ -604,9 +604,9 @@ public:
 		// Set up the world.
 		// We can do this privately before sharing it.
 		World *w = new World;
-		for (int x = 0; x < settings_.width_locations; ++x) {
-			for (int y = 0; y < settings_.height_locations; ++y) {
-				const int id = loc_id(x, y, settings_);
+		for (int x = 0; x < config_.width_locations; ++x) {
+			for (int y = 0; y < config_.height_locations; ++y) {
+				const int id = loc_id(x, y, config_);
 				Shared<Viewer> *viewer = new Shared<Viewer>(ctx, new Viewer);
 				w->add(ctx, new Shared<Location>(ctx, new Location(id, viewer)));
 				viewers[id] = viewer;
@@ -615,18 +615,18 @@ public:
 		// This is slightly more complicated than in occam, because we
 		// can't create all the interfaces (for the neighbours) before
 		// spawning the servers -- so we need this second step.
-		for (int x = 0; x < settings_.width_locations; ++x) {
-			for (int y = 0; y < settings_.height_locations; ++y) {
-				int id = loc_id(x, y, settings_);
+		for (int x = 0; x < config_.width_locations; ++x) {
+			for (int y = 0; y < config_.height_locations; ++y) {
+				int id = loc_id(x, y, config_);
 				Shared<Location> *loc = w->get(id);
 				Claim<Location> c(ctx, *loc);
 				Claim<Viewer> v(ctx, *viewers[id]);
 				v->location(Vector<float>(0.0, 0.0), loc);
 				for (int i = 0; i < NUM_DIRECTIONS; ++i) {
 					Vector<int> dir = DIRECTIONS[i];
-					int nx = (dir.x_ + x + settings_.width_locations) % settings_.width_locations;
-					int ny = (dir.y_ + y + settings_.height_locations) % settings_.height_locations;
-					Shared<Location> *n = w->get(loc_id(nx, ny, settings_));
+					int nx = (dir.x_ + x + config_.width_locations) % config_.width_locations;
+					int ny = (dir.y_ + y + config_.height_locations) % config_.height_locations;
+					Shared<Location> *n = w->get(loc_id(nx, ny, config_));
 					c->neighbour(i, n);
 					v->location(Vector<float>(dir), n);
 				}
@@ -637,10 +637,10 @@ public:
 		{
 			Context f(ctx);
 
-			// Creating the Controls initialises the tweakable
-			// settings.
+			// Creating BoidControls initialises params.
+			Params params;
 			BoidControls *controls =
-				new BoidControls(bar.enroll(), settings_);
+				new BoidControls(bar.enroll(), params);
 			f.spawn(controls);
 
 			for (ViewerMap::iterator it = viewers.begin();
@@ -649,15 +649,15 @@ public:
 				f.spawn(new ViewerUpdater(it->second, bar.enroll()));
 			}
 
-			for (int id = 0; id < settings_.initial_birds; id++) {
-				Vector<float> pos(rand_float() * settings_.width_locations,
-				                  rand_float() * settings_.height_locations);
+			for (int id = 0; id < config_.initial_birds; id++) {
+				Vector<float> pos(rand_float() * config_.width_locations,
+				                  rand_float() * config_.height_locations);
 				Vector<int> pos_loc(pos);
 
 				Shared<Location> *loc;
 				{
 					Claim<World> c(ctx, world);
-					loc = c->get(loc_id(pos_loc.x_, pos_loc.y_, settings_));
+					loc = c->get(loc_id(pos_loc.x_, pos_loc.y_, config_));
 				}
 
 				AgentInfo info;
@@ -665,29 +665,29 @@ public:
 				info.pos_ = Vector<float>(pos.x_ - pos_loc.x_,
 				                          pos.y_ - pos_loc.y_);
 
-				float speed = rand_float() * settings_.max_initial_speed;
+				float speed = rand_float() * config_.max_initial_speed;
 				float dir = rand_float() * 4.0 * M_PI;
 				info.vel_ = Vector<float>(speed * cos(dir),
 				                          speed * sin(dir));
 
-				f.spawn(new Boid(info, loc, bar.enroll(), settings_));
+				f.spawn(new Boid(info, loc, bar.enroll(), params));
 			}
 
-			f.spawn(new SDLDisplay(world, bar, settings_, *controls));
+			f.spawn(new SDLDisplay(world, bar, config_, *controls));
 		}
 
 		cout << "ccoids finished" << endl;
 	}
 
 private:
-	Settings settings_;
+	Config config_;
 };
 
-void parse_options(int argc, char *argv[], Settings& settings) {
+void parse_options(int argc, char *argv[], Config& config) {
 	namespace opts = boost::program_options;
 
 	opts::options_description desc("Options");
-#define simple(Type, Name, Default) opts::value<Type>(&settings.Name)->default_value(Default)
+#define simple(Type, Name, Default) opts::value<Type>(&config.Name)->default_value(Default)
 	desc.add_options()
 		("help", "display this help and exit")
 		("birds", simple(int, initial_birds, 500),
@@ -718,8 +718,8 @@ void parse_options(int argc, char *argv[], Settings& settings) {
 }
 
 int main(int argc, char *argv[]) {
-	Settings settings;
-	parse_options(argc, argv, settings);
+	Config config;
+	parse_options(argc, argv, config);
 
-	return initial_activity(argc, argv, new Ccoids(settings));
+	return initial_activity(argc, argv, new Ccoids(config));
 }
