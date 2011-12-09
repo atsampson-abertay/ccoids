@@ -37,6 +37,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <boost/foreach.hpp>
 
 using namespace std;
 
@@ -118,8 +119,8 @@ void Controls::poll_controls() {
 }
 
 void Controls::reset_controls() {
-	for (int i = 0; i < controls_.size(); ++i) {
-		controls_[i]->reset();
+	BOOST_FOREACH(ControlPtr c, controls_) {
+		c->reset();
 	}
 }
 
@@ -136,8 +137,7 @@ void Controls::send_controls() {
 Controls::StateVector Controls::states() {
 	Controls::StateVector vec;
 
-	for (int i = 0; i < controls_.size(); ++i) {
-		ControlPtr& c(controls_[i]);
+	BOOST_FOREACH(ControlPtr c, controls_) {
 		vec.push_back(State(c->initial(), c->get()));
 	}
 

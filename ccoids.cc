@@ -58,6 +58,7 @@
 #include <gtkmm/drawingarea.h>
 #include <gtkmm/main.h>
 #include <gtkmm/window.h>
+#include <boost/foreach.hpp>
 #include <boost/program_options.hpp>
 
 using namespace std;
@@ -293,8 +294,8 @@ public:
 			// Move towards centroid of visible flock
 			{
 				Vector<float> com(0.0, 0.0);
-				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
-					com += it->pos_;
+				BOOST_FOREACH(AgentInfo &info, view) {
+					com += info.pos_;
 				}
 				if (seen > 0) {
 					com /= (float) seen;
@@ -305,9 +306,9 @@ public:
 			// Move away from birds that are too close
 			{
 				Vector<float> push(0.0, 0.0);
-				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
-					if (it->pos_.mag2() < (settings_.repulsion_distance * settings_.repulsion_distance)) {
-						push -= it->pos_;
+				BOOST_FOREACH(AgentInfo &info, view) {
+					if (info.pos_.mag2() < (settings_.repulsion_distance * settings_.repulsion_distance)) {
+						push -= info.pos_;
 					}
 				}
 				accel += push / settings_.repulsion_fraction;
@@ -316,8 +317,8 @@ public:
 			// Match velocity
 			{
 				Vector<float> perceived(0.0, 0.0);
-				for (AIVector::iterator it = view.begin(); it != view.end(); ++it) {
-					perceived += it->vel_;
+				BOOST_FOREACH(AgentInfo &info, view) {
+					perceived += info.vel_;
 				}
 				if (seen > 0) {
 					perceived /= (float) seen;
@@ -478,26 +479,26 @@ protected:
 
 #if 1
 		// Draw all the tails.
-		for (BlobVector::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
-			Vector<int> pos(it->pos_ * SCALE);
-			Vector<int> tail(it->tail_ * SCALE);
+		BOOST_FOREACH(Blob& blob, blobs_) {
+			Vector<int> pos(blob.pos_ * SCALE);
+			Vector<int> tail(blob.tail_ * SCALE);
 			lineColor(surface_, pos.x_, pos.y_, tail.x_, tail.y_, TAIL_COLOUR);
 		}
 
 		// Draw all the blobs.
-		for (BlobVector::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
-			Vector<int> pos(it->pos_ * SCALE);
+		BOOST_FOREACH(Blob& blob, blobs_) {
+			Vector<int> pos(blob.pos_ * SCALE);
 			filledCircleColor(surface_, pos.x_, pos.y_, BLOB_SIZE, AGENT_COLOUR);
 		}
 #endif
 
 #if 0
 		// Draw all the blobs.
-		for (BlobVector::iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
-			Vector<int> pos(it->pos_ * SCALE);
-			int degrees = (it->angle_ * (180 / M_PI)) + 180;
-			int width = 45 - (it->speed_ * 100.0);
-			int length = (1.0 + it->speed_ * 10.0) * (SCALE / 20);
+		BOOST_FOREACH(Blob& blob, blobs_) {
+			Vector<int> pos(blob.pos_ * SCALE);
+			int degrees = (blob.angle_ * (180 / M_PI)) + 180;
+			int width = 45 - (blob.speed_ * 100.0);
+			int length = (1.0 + blob.speed_ * 10.0) * (SCALE / 20);
 			filledPieColor(surface_, pos.x_, pos.y_, length, int(degrees) - width, int(degrees) + width, AGENT_COLOUR);
 		}
 #endif
@@ -630,10 +631,10 @@ private:
 			cr->set_source_rgba(1.0, 1.0, 1.0, 0.5);
 			cr->set_line_cap(Cairo::LINE_CAP_ROUND);
 			// FIXME: should lock blobs
-			for (BlobVector::const_iterator it = blobs_.begin(); it != blobs_.end(); ++it) {
-				const Vector<float>& pos(it->pos_);
+			BOOST_FOREACH(const Blob& blob, blobs_) {
+				const Vector<float>& pos(blob.pos_);
 				cr->move_to(pos.x_ * world_scale, pos.y_ * world_scale);
-				const Vector<float>& tail(it->tail_);
+				const Vector<float>& tail(blob.tail_);
 				cr->line_to(tail.x_ * world_scale, tail.y_ * world_scale);
 				cr->stroke();
 			}
