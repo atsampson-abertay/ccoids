@@ -41,75 +41,51 @@
 #include <portmidi.h>
 #endif
 
-class Control {
+// Visitor interface for adjustable parameters.
+class Adjuster {
 public:
-	Control(float& value, float min, float initial, float max)
-		: value_(value), min_(min), initial_(initial), max_(max) {
-		reset();
-	}
+	virtual void operator()(float& value, float min,
+	                        float initial, float max) = 0;
+};
 
-	void reset() {
-		value_ = initial_;
-	}
-
-	float initial() {
-		return (initial_ - min_) / (max_ - min_);
-	}
-
-	float get() {
-		return (value_ - min_) / (max_ - min_);
-	}
-
-	void set(float frac) {
-		value_ = min_ + ((max_ - min_) * frac);
-	}
-
-private:
-	float& value_;
-	float min_, initial_, max_;
+// Interface for classes that have a set of adjustable parameters;
+// the adjust_with method should call adjuster.adjust on each of them.
+class Adjustable {
+public:
+	virtual void adjust_with(Adjuster& adjust) = 0;
 };
 
 class Controls {
 public:
+	typedef boost::shared_ptr<Adjustable> AdjustablePtr;
+
 	Controls();
 
-	void add_control(Control *control) {
-		ControlPtr p(control);
-		controls_.push_back(p);
-	}
-	void poll_controls();
-	void reset_controls();
-	void send_controls();
-
-	struct State {
-		State(float initial, float value)
-			: initial_(initial), value_(value) {
-		}
-		float initial_, value_;
-	};
-	typedef std::vector<State> StateVector;
-	StateVector states();
-
-	bool changed() {
-		bool old = changed_;
-		changed_ = false;
-		return old;
-	}
+	void add_and_init(AdjustablePtr adj);
+	void poll();
 
 private:
-	void change_control(int num, float value);
+	void adjust_selected_with(Adjuster& adjuster);
 
-	typedef boost::shared_ptr<Control> ControlPtr;
-	typedef std::vector<ControlPtr> ControlVector;
-	ControlVector controls_;
+	void handle_set(int control, float value);
+	void handle_reset();
+	void handle_select(int num);
+
+	typedef std::vector<AdjustablePtr> AdjustableVector;
+	AdjustableVector adjustables_;
+
+	bool selected_valid() {
+		return (selected_ >= 0) && (selected_ < adjustables_.size());
+	}
+	int selected_;
+
 #ifdef HAVE_LIBPORTMIDI
 	PortMidiStream* in_stream_;
 	PortMidiStream* out_stream_;
 #endif
 
-	bool changed_;
-
 	static const int MAX_EVENTS = 1000;
+	static const int MAX_CONTROLS = 8;
 };
 
 #endif

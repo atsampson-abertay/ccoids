@@ -37,6 +37,7 @@
 
 #include "maths.hh"
 #include "shared.hh"
+#include "controls.hh"
 
 #include <vector>
 #include <map>
@@ -53,7 +54,8 @@ struct Config {
 };
 
 // Parameters for a boid's behaviour.
-struct Params {
+class Params : public Adjustable {
+public:
 	float vision_radius;
 	float vision_angle;
 	float mean_velocity_fraction;
@@ -62,6 +64,17 @@ struct Params {
 	float repulsion_fraction;
 	float smooth_acceleration;
 	float speed_limit;
+
+	void adjust_with(Adjuster& adjust) {
+		adjust(vision_radius, 0.0f, 0.25f, 1.0f);
+		adjust(vision_angle, 0.0f, 200.0f, 360.0f);
+		adjust(mean_velocity_fraction, 1.0f, 8.0f, 20.0f);
+		adjust(centre_of_mass_fraction, 1.0f, 45.0f, 90.0f);
+		adjust(repulsion_distance, 0.0f, 0.05f, 0.5f);
+		adjust(repulsion_fraction, 1.0f, 4.0f, 8.0f);
+		adjust(smooth_acceleration, 1.0f, 5.0f, 20.0f);
+		adjust(speed_limit, 0.0f, 0.03f, 0.2f);
+	}
 };
 
 const Vector<int> DIRECTIONS[] = {

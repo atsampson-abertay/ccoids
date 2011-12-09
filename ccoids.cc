@@ -513,6 +513,8 @@ protected:
 			filledCircleColor(surface_, pos.x_, pos.y_, boid_size, AGENT_COLOUR);
 		}
 
+		// FIXME: reimplement this
+#if 0
 		const int cc_max = 50;
 		if (controls_.changed()) {
 			controls_counter_ = cc_max;
@@ -536,6 +538,7 @@ protected:
 				hlineColor(surface_, l, r, t + (h * (1.0 - states[i].value_)), cursor);
 			}
 		}
+#endif
 
 		SDL_UpdateRect(surface_, 0, 0, 0, 0);
 		SDL_Flip(surface_);
@@ -555,23 +558,11 @@ private:
 };
 
 // FIXME: I'm not wild about using MI here
+// FIXME: this is also a phase adapter
 class BoidControls : public Controls, public Activity {
 public:
-	BoidControls(Barrier& bar, Params& params)
-		: bar_(bar), params_(params) {
-#define control(name, min, init, max) \
-	add_control(new Control(params_.name, min, init, max))
-		control(vision_radius, 0.0f, 0.25f, 1.0f);
-		control(vision_angle, 0.0f, 200.0f, 360.0f);
-		control(mean_velocity_fraction, 1.0f, 8.0f, 20.0f);
-		control(centre_of_mass_fraction, 1.0f, 45.0f, 90.0f);
-		control(repulsion_distance, 0.0f, 0.05f, 0.5f);
-		control(repulsion_fraction, 1.0f, 4.0f, 8.0f);
-		control(smooth_acceleration, 1.0f, 5.0f, 20.0f);
-		control(speed_limit, 0.0f, 0.03f, 0.2f);
-#undef control
-
-		send_controls();
+	BoidControls(Barrier& bar)
+		: bar_(bar) {
 	}
 
 	void run(Context& ctx) {
@@ -579,7 +570,7 @@ public:
 			bar_.sync(ctx); // Phase 1
 			bar_.sync(ctx); // Phase 2
 
-			poll_controls();
+			poll();
 
 			bar_.sync(ctx); // Phase 3
 		}
@@ -587,7 +578,6 @@ public:
 
 private:
 	Barrier& bar_;
-	Params& params_;
 };
 
 class Ccoids : public Activity {
@@ -640,11 +630,12 @@ public:
 		{
 			Context f(ctx);
 
-			// Creating BoidControls initialises params.
-			Params params;
 			BoidControls *controls =
-				new BoidControls(bar.enroll(), params);
+				new BoidControls(bar.enroll());
 			f.spawn(controls);
+
+			boost::shared_ptr<Params> params(new Params);
+			controls->add_and_init(params);
 
 			for (ViewerMap::iterator it = viewers.begin();
 			     it != viewers.end();
@@ -673,7 +664,7 @@ public:
 				info.vel_ = Vector<float>(speed * cos(dir),
 				                          speed * sin(dir));
 
-				f.spawn(new Boid(info, loc, bar.enroll(), params));
+				f.spawn(new Boid(info, loc, bar.enroll(), *params));
 			}
 
 			f.spawn(new SDLDisplay(world, bar, config_, *controls));
