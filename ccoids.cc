@@ -488,15 +488,15 @@ protected:
 		scale_ = config_.display_height / config_.height_locations;
 
 		SDL_WM_SetCaption("ccoids", "ccoids");
-		surface_ = SDL_SetVideoMode(config_.width_locations * scale_,
-		                            config_.height_locations * scale_,
-		                            32, SDL_DOUBLEBUF);
+		screen_ = SDL_SetVideoMode(config_.width_locations * scale_,
+		                           config_.height_locations * scale_,
+		                           32, SDL_DOUBLEBUF);
 
-		ctx.spawn(new SDLEventProcessor(surface_));
+		ctx.spawn(new SDLEventProcessor(screen_));
 	}
 
 	virtual void draw_display(Context& ctx) {
-		boxColor(surface_,
+		boxColor(screen_,
 		         0, 0,
 		         config_.width_locations * scale_,
 		         config_.height_locations * scale_,
@@ -509,7 +509,7 @@ protected:
 
 			Vector<int> pos(info.pos_ * scale_);
 			Vector<int> tail((info.pos_ - info.vel_ * 4.0) * scale_);
-			lineColor(surface_, pos.x_, pos.y_, tail.x_, tail.y_,
+			lineColor(screen_, pos.x_, pos.y_, tail.x_, tail.y_,
 			          colour.to_uint32());
 		}
 
@@ -520,7 +520,7 @@ protected:
 			colour.a = 0.8;
 
 			Vector<int> pos(info.pos_ * scale_);
-			filledCircleColor(surface_, pos.x_, pos.y_, boid_size,
+			filledCircleColor(screen_, pos.x_, pos.y_, boid_size,
 			                  colour.to_uint32());
 		}
 
@@ -544,15 +544,15 @@ protected:
 				const int r = l + 25;
 				const int t = 20;
 				const int h = 100;
-				boxColor(surface_, l, t, r, t + h, bg);
-				hlineColor(surface_, l, r, t + (h * (1.0 - states[i].initial_)), marker);
-				hlineColor(surface_, l, r, t + (h * (1.0 - states[i].value_)), cursor);
+				boxColor(screen_, l, t, r, t + h, bg);
+				hlineColor(screen_, l, r, t + (h * (1.0 - states[i].initial_)), marker);
+				hlineColor(screen_, l, r, t + (h * (1.0 - states[i].value_)), cursor);
 			}
 		}
 #endif
 
-		SDL_UpdateRect(surface_, 0, 0, 0, 0);
-		SDL_Flip(surface_);
+		SDL_UpdateRect(screen_, 0, 0, 0, 0);
+		SDL_Flip(screen_);
 	}
 
 private:
@@ -561,7 +561,7 @@ private:
 	// The width of a world unit, in pixels
 	int scale_;
 
-	SDL_Surface *surface_;
+	SDL_Surface *screen_;
 	Controls& controls_;
 	int controls_counter_;
 };
