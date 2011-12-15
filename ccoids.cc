@@ -502,6 +502,17 @@ protected:
 		         config_.height_locations * scale_,
 		         BACKGROUND_COLOUR);
 
+		// Draw transparent shadows behind the blobs.
+		const int blob_size = 0.05 * scale_;
+		BOOST_FOREACH(AgentInfo& info, agents_) {
+			Colour colour = hsv(info.plumage_, 0.7, 1.0);
+			colour.a = 0.1;
+
+			Vector<int> pos(info.pos_ * scale_);
+			filledCircleColor(screen_, pos.x_, pos.y_, blob_size,
+			                  colour.to_uint32());
+		}
+
 		// Draw all the tails.
 		BOOST_FOREACH(AgentInfo& info, agents_) {
 			Colour colour = hsv(info.plumage_, 1.0, 1.0);
