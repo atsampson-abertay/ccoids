@@ -46,55 +46,55 @@ class Controls;
 // Visitor interface for adjustable parameters.
 class Adjuster {
 public:
-	virtual void operator()(float& value, float min,
-	                        float initial, float max) = 0;
+    virtual void operator()(float& value, float min,
+                            float initial, float max) = 0;
 };
 
 // Interface for classes that have a set of adjustable parameters;
 // the adjust_with method should call adjuster.adjust on each of them.
 class Adjustable {
 public:
-	virtual void adjust_with(Adjuster& adjust) = 0;
+    virtual void adjust_with(Adjuster& adjust) = 0;
 };
 
 class ControlDevice {
 public:
-	virtual void poll(Controls& controls) {
-	}
-	virtual void send_control(int control, float value) {
-	}
+    virtual void poll(Controls& controls) {
+    }
+    virtual void send_control(int control, float value) {
+    }
 };
 
 class Controls {
 public:
-	typedef boost::shared_ptr<Adjustable> AdjustablePtr;
-	typedef boost::shared_ptr<ControlDevice> DevicePtr;
+    typedef boost::shared_ptr<Adjustable> AdjustablePtr;
+    typedef boost::shared_ptr<ControlDevice> DevicePtr;
 
-	Controls();
+    Controls();
 
-	void add_and_init(AdjustablePtr adj);
-	void poll();
+    void add_and_init(AdjustablePtr adj);
+    void poll();
 
-	// FIXME: should these be private and friends-ified?
-	void handle_set(int control, float value);
-	void handle_reset();
-	void handle_select(int num);
+    // FIXME: should these be private and friends-ified?
+    void handle_set(int control, float value);
+    void handle_reset();
+    void handle_select(int num);
 
 private:
-	void adjust_selected_with(Adjuster& adjuster);
+    void adjust_selected_with(Adjuster& adjuster);
 
-	typedef std::vector<AdjustablePtr> AdjustableVector;
-	AdjustableVector adjustables_;
+    typedef std::vector<AdjustablePtr> AdjustableVector;
+    AdjustableVector adjustables_;
 
-	bool selected_valid() {
-		return (selected_ >= 0) && (selected_ < adjustables_.size());
-	}
-	int selected_;
+    bool selected_valid() {
+        return (selected_ >= 0) && (selected_ < adjustables_.size());
+    }
+    int selected_;
 
-	typedef std::vector<DevicePtr> DeviceVector;
-	DeviceVector devices_;
+    typedef std::vector<DevicePtr> DeviceVector;
+    DeviceVector devices_;
 
-	static const int MAX_CONTROLS = 16;
+    static const int MAX_CONTROLS = 16;
 };
 
 #endif

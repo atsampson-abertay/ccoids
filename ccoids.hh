@@ -45,61 +45,61 @@
 // Settings for the whole simulation.
 // These can't be changed after startup.
 struct Config {
-	int initial_birds;
-	int initial_populations;
-	float max_initial_speed;
-	int width_locations;
-	int height_locations;
-	int display_height;
-	int display_fps;
+    int initial_birds;
+    int initial_populations;
+    float max_initial_speed;
+    int width_locations;
+    int height_locations;
+    int display_height;
+    int display_fps;
 };
 
 // Parameters for a boid's behaviour.
 class Params : public Adjustable {
 public:
-	float vision_radius;
-	float vision_angle;
-	float mean_velocity_fraction;
-	float centre_of_mass_fraction;
-	float repulsion_distance;
-	float repulsion_fraction;
-	float smooth_acceleration;
-	float speed_limit;
+    float vision_radius;
+    float vision_angle;
+    float mean_velocity_fraction;
+    float centre_of_mass_fraction;
+    float repulsion_distance;
+    float repulsion_fraction;
+    float smooth_acceleration;
+    float speed_limit;
 
-	float plumage;
+    float plumage;
 
-	void adjust_with(Adjuster& adjust) {
-		adjust(vision_radius, 0.0f, 0.25f, 1.0f);
-		adjust(vision_angle, 0.0f, 200.0f, 360.0f);
-		adjust(mean_velocity_fraction, 1.0f, 8.0f, 20.0f);
-		adjust(centre_of_mass_fraction, 1.0f, 45.0f, 90.0f);
-		adjust(repulsion_distance, 0.0f, 0.05f, 0.5f);
-		adjust(repulsion_fraction, 1.0f, 4.0f, 8.0f);
-		adjust(smooth_acceleration, 1.0f, 5.0f, 20.0f);
-		adjust(speed_limit, 0.0f, 0.03f, 0.2f);
+    void adjust_with(Adjuster& adjust) {
+        adjust(vision_radius, 0.0f, 0.25f, 1.0f);
+        adjust(vision_angle, 0.0f, 200.0f, 360.0f);
+        adjust(mean_velocity_fraction, 1.0f, 8.0f, 20.0f);
+        adjust(centre_of_mass_fraction, 1.0f, 45.0f, 90.0f);
+        adjust(repulsion_distance, 0.0f, 0.05f, 0.5f);
+        adjust(repulsion_fraction, 1.0f, 4.0f, 8.0f);
+        adjust(smooth_acceleration, 1.0f, 5.0f, 20.0f);
+        adjust(speed_limit, 0.0f, 0.03f, 0.2f);
 
-		adjust(plumage, 0.0f, 0.5f, 1.0f);
-	}
+        adjust(plumage, 0.0f, 0.5f, 1.0f);
+    }
 };
 
 const Vector<int> DIRECTIONS[] = {
-	Vector<int>(-1, -1), Vector<int>(0, -1), Vector<int>(1, -1),
-	Vector<int>(-1,  0),                     Vector<int>(1,  0),
-	Vector<int>(-1,  1), Vector<int>(0,  1), Vector<int>(1,  1)
+    Vector<int>(-1, -1), Vector<int>(0, -1), Vector<int>(1, -1),
+    Vector<int>(-1,  0),                     Vector<int>(1,  0),
+    Vector<int>(-1,  1), Vector<int>(0,  1), Vector<int>(1,  1)
 };
 const int NUM_DIRECTIONS = 8;
 
 class AgentInfo {
 public:
-	AgentInfo()
-		: id_(-1), local_id_(-1), pos_(0.0, 0.0), vel_(0.0, 0.0),
-		  plumage_(0.0) {
-	}
+    AgentInfo()
+        : id_(-1), local_id_(-1), pos_(0.0, 0.0), vel_(0.0, 0.0),
+          plumage_(0.0) {
+    }
 
-	int id_;
-	int local_id_;
-	Vector<float> pos_, vel_;
-	float plumage_;
+    int id_;
+    int local_id_;
+    Vector<float> pos_, vel_;
+    float plumage_;
 };
 
 class Location;

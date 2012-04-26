@@ -43,23 +43,23 @@ extern "C" {
 
 class ContextImpl {
 public:
-	ContextImpl(Workspace wptr);
-	virtual ~ContextImpl();
-	void spawn(Activity *child);
+    ContextImpl(Workspace wptr);
+    virtual ~ContextImpl();
+    void spawn(Activity *child);
 
 private:
-	Workspace wptr_;
-	mt_barrier_t *bar_;
+    Workspace wptr_;
+    mt_barrier_t *bar_;
 
-	friend Workspace wptr(Context& ctx);
+    friend Workspace wptr(Context& ctx);
 };
 
 inline ContextImpl *context_impl(Context& ctx) {
-	return ctx.impl_;
+    return ctx.impl_;
 }
 
 inline Workspace wptr(Context& ctx) {
-	return context_impl(ctx)->wptr_;
+    return context_impl(ctx)->wptr_;
 }
 
 #endif

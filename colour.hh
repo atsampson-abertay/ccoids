@@ -37,50 +37,50 @@
 #include <inttypes.h>
 
 static uint8_t component_to_uint8(float f) {
-	return f * 0xFF;
+    return f * 0xFF;
 }
 
 /*{{{  class Colour */
 class Colour {
 public:
-	Colour() : r(0.0), g(0.0), b(0.0), a(0.0) {}
-	Colour(float r, float g, float b) : r(r), g(g), b(b), a(1.0) {}
-	Colour(float r, float g, float b, float a) : r(r), g(g), b(b), a(a) {}
+    Colour() : r(0.0), g(0.0), b(0.0), a(0.0) {}
+    Colour(float r, float g, float b) : r(r), g(g), b(b), a(1.0) {}
+    Colour(float r, float g, float b, float a) : r(r), g(g), b(b), a(a) {}
 
-	typedef float triple[3];
-	void to_triple(triple& t) {
-		t[0] = r;
-		t[1] = g;
-		t[2] = b;
-	}
+    typedef float triple[3];
+    void to_triple(triple& t) {
+        t[0] = r;
+        t[1] = g;
+        t[2] = b;
+    }
 
-	typedef float quad[4];
-	void to_quad(quad& q) {
-		q[0] = r;
-		q[1] = g;
-		q[2] = b;
-		q[3] = a;
-	}
+    typedef float quad[4];
+    void to_quad(quad& q) {
+        q[0] = r;
+        q[1] = g;
+        q[2] = b;
+        q[3] = a;
+    }
 
-	uint32_t to_uint32() {
-		return (component_to_uint8(r) << 24)
-		       | (component_to_uint8(g) << 16)
-		       | (component_to_uint8(b) << 8)
-		       | component_to_uint8(a);
-	}
-	uint32_t to_rgba() {
-		union {
-			uint32_t v;
-			uint8_t c[4];
-		} u;
-		u.c[0] = component_to_uint8(r);
-		u.c[1] = component_to_uint8(g);
-		u.c[2] = component_to_uint8(b);
-		u.c[3] = component_to_uint8(a);
-		return u.v;
-	}
+    uint32_t to_uint32() {
+        return (component_to_uint8(r) << 24)
+               | (component_to_uint8(g) << 16)
+               | (component_to_uint8(b) << 8)
+               | component_to_uint8(a);
+    }
+    uint32_t to_rgba() {
+        union {
+            uint32_t v;
+            uint8_t c[4];
+        } u;
+        u.c[0] = component_to_uint8(r);
+        u.c[1] = component_to_uint8(g);
+        u.c[2] = component_to_uint8(b);
+        u.c[3] = component_to_uint8(a);
+        return u.v;
+    }
 
-	float r, g, b, a;
+    float r, g, b, a;
 };
 /*}}}*/
 

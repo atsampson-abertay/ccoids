@@ -39,15 +39,15 @@
 
 class Barrier {
 public:
-	Barrier(Context& ctx, int count);
-	~Barrier();
-	Barrier& enroll();
-	void resign(Context& ctx);
-	void sync(Context& ctx);
+    Barrier(Context& ctx, int count);
+    ~Barrier();
+    Barrier& enroll();
+    void resign(Context& ctx);
+    void sync(Context& ctx);
 
 private:
-	Context& ctx_;
-	void *data_;
+    Context& ctx_;
+    void *data_;
 };
 
 // FIXME: PhaseBarrier

@@ -38,25 +38,25 @@
 #include <cstdlib>
 
 float rand_float() {
-	return rand() / (1.0 * RAND_MAX);
+    return rand() / (1.0 * RAND_MAX);
 }
 
 int oversign(float v) {
-	if (v < 0) {
-		return -1;
-	} else if (v > 1) {
-		return 1;
-	} else {
-		return 0;
-	}
+    if (v < 0) {
+        return -1;
+    } else if (v > 1) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 float angle_diff(float a, float b) {
-	float r = a - b;
-	if (r < -M_PI) {
-		r += 2.0 * M_PI;
-	} else if (r > M_PI) {
-		r -= 2.0 * M_PI;
-	}
-	return fabs(r);
+    float r = a - b;
+    if (r < -M_PI) {
+        r += 2.0 * M_PI;
+    } else if (r > M_PI) {
+        r -= 2.0 * M_PI;
+    }
+    return fabs(r);
 }

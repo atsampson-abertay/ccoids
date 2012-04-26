@@ -35,31 +35,31 @@
 
 /*{{{  Colour hsv */
 Colour hsv(float h, float s, float v) {
-	if (s == 0.0) {
-		return Colour(v, v, v);
-	}
+    if (s == 0.0) {
+        return Colour(v, v, v);
+    }
 
-	h /= (1 / 6.0);
-	const int i = h;
-	const float f = h - i;
+    h /= (1 / 6.0);
+    const int i = h;
+    const float f = h - i;
 
-	const float p = v * (1 - s);
-	const float q = v * (1 - s * f);
-	const float t = v * (1 - s * (1 - f));
+    const float p = v * (1 - s);
+    const float q = v * (1 - s * f);
+    const float t = v * (1 - s * (1 - f));
 
-	switch (i) {
-	case 0:
-		return Colour(v, t, p);
-	case 1:
-		return Colour(q, v, p);
-	case 2:
-		return Colour(p, v, t);
-	case 3:
-		return Colour(p, q, v);
-	case 4:
-		return Colour(t, p, v);
-	default:
-		return Colour(v, p, q);
-	}
+    switch (i) {
+    case 0:
+        return Colour(v, t, p);
+    case 1:
+        return Colour(q, v, p);
+    case 2:
+        return Colour(p, v, t);
+    case 3:
+        return Colour(p, q, v);
+    case 4:
+        return Colour(t, p, v);
+    default:
+        return Colour(v, p, q);
+    }
 }
 /*}}}*/

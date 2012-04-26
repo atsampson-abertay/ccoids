@@ -37,52 +37,52 @@
 
 template <typename ELEMENT> class Vector {
 public:
-	Vector(ELEMENT x, ELEMENT y) : x_(x), y_(y) {
-	}
-	// FIXME Is this a bad idea?
-	template <typename OTHER>
-	Vector(Vector<OTHER> v) : x_(v.x_), y_(v.y_) {
-	}
+    Vector(ELEMENT x, ELEMENT y) : x_(x), y_(y) {
+    }
+    // FIXME Is this a bad idea?
+    template <typename OTHER>
+    Vector(Vector<OTHER> v) : x_(v.x_), y_(v.y_) {
+    }
 
-	Vector<ELEMENT> operator+(const Vector<ELEMENT>& b) const {
-		return Vector<ELEMENT>(x_ + b.x_, y_ + b.y_);
-	}
-	Vector<ELEMENT>& operator+=(const Vector<ELEMENT> &b) {
-		*this = *this + b;
-		return *this;
-	}
-	Vector<ELEMENT> operator-(const Vector<ELEMENT>& b) const {
-		return Vector<ELEMENT>(x_ - b.x_, y_ - b.y_);
-	}
-	Vector<ELEMENT>& operator-=(const Vector<ELEMENT> &b) {
-		*this = *this - b;
-		return *this;
-	}
+    Vector<ELEMENT> operator+(const Vector<ELEMENT>& b) const {
+        return Vector<ELEMENT>(x_ + b.x_, y_ + b.y_);
+    }
+    Vector<ELEMENT>& operator+=(const Vector<ELEMENT> &b) {
+        *this = *this + b;
+        return *this;
+    }
+    Vector<ELEMENT> operator-(const Vector<ELEMENT>& b) const {
+        return Vector<ELEMENT>(x_ - b.x_, y_ - b.y_);
+    }
+    Vector<ELEMENT>& operator-=(const Vector<ELEMENT> &b) {
+        *this = *this - b;
+        return *this;
+    }
 
-	Vector<ELEMENT> operator*(ELEMENT v) const {
-		return Vector<ELEMENT>(x_ * v, y_ * v);
-	}
-	Vector<ELEMENT>& operator*=(ELEMENT v) {
-		*this = *this * v;
-		return *this;
-	}
-	Vector<ELEMENT> operator/(ELEMENT v) const {
-		return Vector<ELEMENT>(x_ / v, y_ / v);
-	}
-	Vector<ELEMENT>& operator/=(ELEMENT v) {
-		*this = *this / v;
-		return *this;
-	}
+    Vector<ELEMENT> operator*(ELEMENT v) const {
+        return Vector<ELEMENT>(x_ * v, y_ * v);
+    }
+    Vector<ELEMENT>& operator*=(ELEMENT v) {
+        *this = *this * v;
+        return *this;
+    }
+    Vector<ELEMENT> operator/(ELEMENT v) const {
+        return Vector<ELEMENT>(x_ / v, y_ / v);
+    }
+    Vector<ELEMENT>& operator/=(ELEMENT v) {
+        *this = *this / v;
+        return *this;
+    }
 
-	bool operator==(const Vector<ELEMENT>& b) const {
-		return (x_ == b.x_) && (y_ == b.y_);
-	}
+    bool operator==(const Vector<ELEMENT>& b) const {
+        return (x_ == b.x_) && (y_ == b.y_);
+    }
 
-	ELEMENT mag2() const {
-		return (x_ * x_) + (y_ * y_);
-	}
+    ELEMENT mag2() const {
+        return (x_ * x_) + (y_ * y_);
+    }
 
-	ELEMENT x_, y_;
+    ELEMENT x_, y_;
 };
 
 float rand_float();
