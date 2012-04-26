@@ -672,6 +672,7 @@ public:
 				add_boids(f, bar, world, count, *p);
 			}
 
+			// This final process inherits our barrier end.
 			f.spawn(new SDLDisplay(world, bar, config_, *controls));
 		}
 
