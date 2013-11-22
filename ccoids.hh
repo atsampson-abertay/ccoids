@@ -1,8 +1,8 @@
 /*
- *  ccoids.cc - simulation definitions for ccoids
+ *  ccoids.hh - simulation definitions for ccoids
  *  Adam Sampson
  *
- *  Copyright (C) 2009, 2011, Adam Sampson
+ *  Copyright (C) 2009, 2011, 2012, 2013 Adam Sampson
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -36,11 +36,9 @@
 #define CCOIDS_HH
 
 #include "maths.hh"
-#include "shared.hh"
 #include "controls.hh"
 
-#include <vector>
-#include <map>
+#include <boost/shared_ptr.hpp>
 
 // Settings for the whole simulation.
 // These can't be changed after startup.
@@ -102,12 +100,20 @@ public:
     float plumage_;
 };
 
-class Location;
-class Viewer;
-typedef std::vector<AgentInfo> AIVector;
-typedef std::map<int, AgentInfo> AIMap;
-typedef std::map<int, Shared<Location> *> LocMap;
-typedef std::map<int, Vector<float> > VecMap;
-typedef std::map<int, Shared<Viewer> *> ViewerMap;
+class Activity {
+public:
+    // Phase 1  Viewers update
+    virtual void phase1() {
+    }
+
+    // Phase 2  Agents look and compute
+    virtual void phase2() {
+    }
+
+    // Phase 3  Agents send updates
+    virtual void phase3() {
+    }
+};
+typedef boost::shared_ptr<Activity> ActivityPtr;
 
 #endif
