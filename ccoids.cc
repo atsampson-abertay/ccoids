@@ -83,6 +83,8 @@ void run_phase3(ActivityPtr& ap) {
     ap->phase3();
 }
 
+// A region of space, holding the agents that are currently in that region.
+// The width of the region is the maximum view radius in the simulation.
 class Location {
 public:
     Location(int id, Shared<Viewer> *viewer)
@@ -140,12 +142,14 @@ private:
     LocMap neighbours_;
 };
 
+// Compute the ID of a location from its position in the world.
 // FIXME Have a data type for this instead?
 // FIXME Move into Config
 int loc_id(int x, int y, const Config& config) {
     return (y * config.width_locations) + x;
 }
 
+// The world: a collection of regions of space.
 class World {
 public:
     World() {
@@ -171,6 +175,9 @@ private:
     LocMap locations_;
 };
 
+// A cache for the view from a single location.
+// This keeps a copy of all the agent information for birds in this location
+// and the surrounding location.
 class Viewer {
 public:
     Viewer() {
@@ -227,6 +234,7 @@ private:
     Shared<Viewer> *viewer_;
 };
 
+// A boid.
 class Boid : public Activity {
 public:
     Boid(AgentInfo info, Shared<Location> *loc, Params& params)
@@ -560,6 +568,7 @@ public:
     }
 };
 
+// The simulation.
 class Ccoids {
 public:
     Ccoids(const Config& config)
