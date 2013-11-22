@@ -39,19 +39,12 @@
 #include <boost/foreach.hpp>
 
 Display::Display(Shared<World>& world, Config& config)
-    : world_(world), config_(config), last_(tbb::tick_count::now()), period_(0.0) {
+    : world_(world), config_(config) {
 }
 
-void Display::phase2() {
-    tbb::tick_count now = tbb::tick_count::now();
-
-    if ((now - last_).seconds() >= period_) {
-        fetch_agents();
-        draw_display();
-
-        last_ = now;
-        period_ = 1.0 / config_.display_fps;
-    }
+void Display::update() {
+    fetch_agents();
+    draw_display();
 }
 
 void Display::fetch_agents() {

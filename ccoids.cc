@@ -46,6 +46,7 @@
 #include <iostream>
 #include <map>
 #include <tbb/parallel_for_each.h>
+#include <tbb/tick_count.h>
 #include <vector>
 
 void run_phase1(ActivityPtr& ap) {
@@ -141,13 +142,20 @@ public:
             add_boids(world, count, *p);
         }
 
-        {
-            ActivityPtr ap(new SDLDisplay(world, config_, *controls));
-            activities_.push_back(ap);
-        }
+        SDLDisplay display(world, config_, *controls);
 
-        // Run the activities.
+        tbb::tick_count last_display;
+        const double display_period = 1.0 / config_.display_fps;
+
         while (true) {
+            // Does the display need updating?
+            tbb::tick_count now = tbb::tick_count::now();
+            if ((now - last_display).seconds() >= display_period) {
+                display.update();
+                last_display = now;
+            }
+
+            // Run the activities.
             tbb::parallel_for_each(activities_.begin(), activities_.end(), run_phase1);
             tbb::parallel_for_each(activities_.begin(), activities_.end(), run_phase2);
             tbb::parallel_for_each(activities_.begin(), activities_.end(), run_phase3);

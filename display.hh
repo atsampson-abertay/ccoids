@@ -40,13 +40,12 @@
 #include "world.hh"
 
 #include <SDL.h>
-#include <tbb/tick_count.h>
 
-class Display : public Activity {
+class Display {
 public:
     Display(Shared<World>& world, Config& config);
 
-    void phase2();
+    void update();
 
 protected:
     virtual void draw_display() = 0;
@@ -57,8 +56,6 @@ protected:
 
     Shared<World>& world_;
     Config& config_;
-    tbb::tick_count last_;
-    double period_;
 };
 
 class SDLDisplay : public Display {
