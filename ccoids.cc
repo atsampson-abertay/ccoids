@@ -61,15 +61,6 @@ void run_phase3(ActivityPtr& ap) {
     ap->phase3();
 }
 
-// FIXME: I'm not wild about using MI here
-// FIXME: this is also a phase adapter
-class BoidControls : public Controls, public Activity {
-public:
-    void phase2() {
-        poll();
-    }
-};
-
 // The simulation.
 class Ccoids {
 public:
@@ -116,18 +107,14 @@ public:
         }
         Shared<World> world(w);
 
-        BoidControls *controls = new BoidControls();
+        Controls controls;
 
+        // Create a set of parameters for each population of boids.
         std::vector<ParamsPtr> params;
         for (int i = 0; i < config_.initial_populations; ++i) {
             ParamsPtr p(new Params);
             params.push_back(p);
-            controls->add_and_init(p);
-        }
-
-        {
-            ActivityPtr ap(controls);
-            activities_.push_back(ap);
+            controls.add_and_init(p);
         }
 
         for (ViewerMap::iterator it = viewers.begin();
@@ -142,7 +129,7 @@ public:
             add_boids(world, count, *p);
         }
 
-        SDLDisplay display(world, config_, *controls);
+        SDLDisplay display(world, config_, controls);
 
         tbb::tick_count last_display;
         const double display_period = 1.0 / config_.display_fps;
@@ -151,6 +138,7 @@ public:
             // Does the display need updating?
             tbb::tick_count now = tbb::tick_count::now();
             if ((now - last_display).seconds() >= display_period) {
+                controls.poll();
                 display.update();
                 last_display = now;
             }
