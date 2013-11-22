@@ -2,7 +2,7 @@
  *  ccoids.cc - CoSMoS Demos
  *  Adam Sampson
  *
- *  Copyright (C) 2009, 2011, Adam Sampson
+ *  Copyright (C) 2009, 2011, 2012, 2013 Adam Sampson
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -32,20 +32,11 @@
  *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// Boids in C++ using CCSP for concurrency.
-// Phase structure:
-// Phase 1  Viewers update
-// Phase 2  Agents look and compute
-// Phase 3  Agents send updates
-
-#include "barrier.hh"
 #include "ccoids.hh"
 #include "colour.hh"
-#include "context.hh"
 #include "controls.hh"
 #include "maths.hh"
 #include "shared.hh"
-#include "timer.hh"
 
 #include <iostream>
 #include <vector>
@@ -58,8 +49,39 @@
 #include <SDL_gfxPrimitives.h>
 #include <boost/foreach.hpp>
 #include <boost/program_options.hpp>
+#include <tbb/parallel_for_each.h>
+#include <tbb/tick_count.h>
 
 using namespace std;
+
+class Activity {
+public:
+    // Phase 1  Viewers update
+    virtual void phase1() {
+    }
+
+    // Phase 2  Agents look and compute
+    virtual void phase2() {
+    }
+
+    // Phase 3  Agents send updates
+    virtual void phase3() {
+    }
+};
+
+typedef boost::shared_ptr<Activity> ActivityPtr;
+
+void run_phase1(ActivityPtr& ap) {
+    ap->phase1();
+}
+
+void run_phase2(ActivityPtr& ap) {
+    ap->phase2();
+}
+
+void run_phase3(ActivityPtr& ap) {
+    ap->phase3();
+}
 
 class Location {
 public:
@@ -136,8 +158,8 @@ public:
     }
 
     // The World owns the location after this.
-    void add(Context& ctx, Shared<Location> *loc) {
-        Claim<Location> c(ctx, *loc);
+    void add(Shared<Location> *loc) {
+        Claim<Location> c(*loc);
         locations_[c->id()] = loc;
     }
 
@@ -162,10 +184,10 @@ public:
         locations_.push_back(loc);
     }
 
-    void update(Context& ctx) {
+    void update() {
         infos_.clear();
         for (int i = 0; i < offsets_.size(); ++i) {
-            Claim<Location> c(ctx, *locations_[i]);
+            Claim<Location> c(*locations_[i]);
             AIMap::const_iterator it, end;
             c->look(it, end);
 
@@ -192,38 +214,29 @@ private:
 // FIXME Generalise into PhaseAdapter
 class ViewerUpdater : public Activity {
 public:
-    ViewerUpdater(Shared<Viewer> *viewer, Barrier& bar)
-        : viewer_(viewer), bar_(bar) {
+    ViewerUpdater(Shared<Viewer> *viewer)
+        : viewer_(viewer) {
     }
 
-    void run(Context& ctx) {
-        while (true) {
-            bar_.sync(ctx); // Phase 1
-
-            {
-                Claim<Viewer> c(ctx, *viewer_);
-                c->update(ctx);
-            }
-
-            bar_.sync(ctx); // Phase 2
-            bar_.sync(ctx); // Phase 3
-        }
+    void phase1() {
+        Claim<Viewer> c(*viewer_);
+        c->update();
     }
 
 private:
-    Barrier& bar_;
     Shared<Viewer> *viewer_;
 };
 
 class Boid : public Activity {
 public:
-    Boid(AgentInfo info, Shared<Location> *loc, Barrier& bar, Params& params)
-        : info_(info), loc_(loc), bar_(bar), params_(params) {
+    Boid(AgentInfo info, Shared<Location> *loc, Params& params)
+        : info_(info), loc_(loc), params_(params) {
+        do_update(true);
     }
 
-    void do_update(Context &ctx, bool enter) {
+    void do_update(bool enter) {
         while (true) {
-            Claim<Location> c(ctx, *loc_);
+            Claim<Location> c(*loc_);
 
             Shared<Location> *new_loc;
             if (enter) {
@@ -241,149 +254,132 @@ public:
         }
     }
 
-    void run(Context& ctx) {
-        do_update(ctx, true);
+    void phase2() {
+        typedef vector<AgentInfo> AIVector;
+        AIVector view;
 
-        while (true) {
-            bar_.sync(ctx); // Phase 1
-            bar_.sync(ctx); // Phase 2
+        {
+            Claim<Viewer> c(*viewer_);
+            AIVector::const_iterator it, end;
+            c->look(it, end);
 
-            typedef vector<AgentInfo> AIVector;
-            AIVector view;
+            float my_angle = atan2f(info_.vel_.x_, info_.vel_.y_);
+            const float max_r2 = params_.vision_radius * params_.vision_radius;
+            const float max_diff = ((params_.vision_angle / 2.0) * M_PI) / 180.0;
 
-            {
-                Claim<Viewer> c(ctx, *viewer_);
-                AIVector::const_iterator it, end;
-                c->look(it, end);
+            for (; it != end; ++it) {
+                AgentInfo that = *it;
 
-                float my_angle = atan2f(info_.vel_.x_, info_.vel_.y_);
-                const float max_r2 = params_.vision_radius * params_.vision_radius;
-                const float max_diff = ((params_.vision_angle / 2.0) * M_PI) / 180.0;
-
-                for (; it != end; ++it) {
-                    AgentInfo that = *it;
-
-                    if (that.id_ == info_.id_) {
-                        // This bird -- ignore
-                        continue;
-                    }
-
-                    // Compute relative position
-                    that.pos_ -= info_.pos_;
-
-                    if (that.pos_.mag2() > max_r2) {
-                        // Too far away -- ignore
-                        continue;
-                    }
-
-                    float angle = atan2(that.pos_.x_, that.pos_.y_);
-                    if (angle_diff(angle, my_angle) > max_diff) {
-                        // Out of field of view -- ignore
-                        continue;
-                    }
-
-                    view.push_back(that);
+                if (that.id_ == info_.id_) {
+                    // This bird -- ignore
+                    continue;
                 }
+
+                // Compute relative position
+                that.pos_ -= info_.pos_;
+
+                if (that.pos_.mag2() > max_r2) {
+                    // Too far away -- ignore
+                    continue;
+                }
+
+                float angle = atan2(that.pos_.x_, that.pos_.y_);
+                if (angle_diff(angle, my_angle) > max_diff) {
+                    // Out of field of view -- ignore
+                    continue;
+                }
+
+                view.push_back(that);
             }
-
-            int seen = view.size();
-
-            Vector<float> accel(0.0, 0.0);
-
-            // Move towards centroid of visible flock
-            {
-                Vector<float> com(0.0, 0.0);
-                BOOST_FOREACH(AgentInfo &info, view) {
-                    com += info.pos_;
-                }
-                if (seen > 0) {
-                    com /= (float) seen;
-                }
-                accel += com / params_.centre_of_mass_fraction;
-            }
-
-            // Move away from birds that are too close
-            {
-                Vector<float> push(0.0, 0.0);
-                BOOST_FOREACH(AgentInfo &info, view) {
-                    if (info.pos_.mag2() < (params_.repulsion_distance * params_.repulsion_distance)) {
-                        push -= info.pos_;
-                    }
-                }
-                accel += push / params_.repulsion_fraction;
-            }
-
-            // Match velocity
-            {
-                Vector<float> perceived(0.0, 0.0);
-                BOOST_FOREACH(AgentInfo &info, view) {
-                    perceived += info.vel_;
-                }
-                if (seen > 0) {
-                    perceived /= (float) seen;
-                }
-                perceived -= info_.vel_;
-                accel += perceived / params_.mean_velocity_fraction;
-            }
-
-            info_.vel_ += accel / params_.smooth_acceleration;
-
-            // Apply speed limit
-            float mag = info_.vel_.mag2();
-            const float speed_limit2 = params_.speed_limit * params_.speed_limit;
-            if (mag > speed_limit2) {
-                info_.vel_ /= mag / speed_limit2;
-            }
-
-            info_.pos_ += info_.vel_;
-
-            info_.plumage_ = params_.plumage;
-
-            bar_.sync(ctx); // Phase 3
-
-            do_update(ctx, false);
         }
+
+        int seen = view.size();
+
+        Vector<float> accel(0.0, 0.0);
+
+        // Move towards centroid of visible flock
+        {
+            Vector<float> com(0.0, 0.0);
+            BOOST_FOREACH(AgentInfo &info, view) {
+                com += info.pos_;
+            }
+            if (seen > 0) {
+                com /= (float) seen;
+            }
+            accel += com / params_.centre_of_mass_fraction;
+        }
+
+        // Move away from birds that are too close
+        {
+            Vector<float> push(0.0, 0.0);
+            BOOST_FOREACH(AgentInfo &info, view) {
+                if (info.pos_.mag2() < (params_.repulsion_distance * params_.repulsion_distance)) {
+                    push -= info.pos_;
+                }
+            }
+            accel += push / params_.repulsion_fraction;
+        }
+
+        // Match velocity
+        {
+            Vector<float> perceived(0.0, 0.0);
+            BOOST_FOREACH(AgentInfo &info, view) {
+                perceived += info.vel_;
+            }
+            if (seen > 0) {
+                perceived /= (float) seen;
+            }
+            perceived -= info_.vel_;
+            accel += perceived / params_.mean_velocity_fraction;
+        }
+
+        info_.vel_ += accel / params_.smooth_acceleration;
+
+        // Apply speed limit
+        float mag = info_.vel_.mag2();
+        const float speed_limit2 = params_.speed_limit * params_.speed_limit;
+        if (mag > speed_limit2) {
+            info_.vel_ /= mag / speed_limit2;
+        }
+
+        info_.pos_ += info_.vel_;
+
+        info_.plumage_ = params_.plumage;
+    }
+
+    void phase3() {
+        do_update(false);
     }
 
 private:
     AgentInfo info_;
     Shared<Location> *loc_;
     Shared<Viewer> *viewer_;
-    Barrier& bar_;
     Params& params_;
 };
 
 class Display : public Activity {
 public:
-    Display(Shared<World>& world, Barrier& bar, Config& config)
-        : world_(world), bar_(bar), config_(config) {
+    Display(Shared<World>& world, Config& config)
+        : world_(world), config_(config), last_(tbb::tick_count::now()), period_(0.0) {
     }
 
-    void run(Context& ctx) {
-        init_display(ctx);
+    void phase2() {
+        tbb::tick_count now = tbb::tick_count::now();
 
-        Timer tim;
-        TimeVal next = tim.read(ctx);
-        while (true) {
-            bar_.sync(ctx); // Phase 1
-            bar_.sync(ctx); // Phase 2
+        if ((now - last_).seconds() >= period_) {
+            fetch_agents();
+            draw_display();
 
-            if (after(tim.read(ctx), next)) {
-                fetch_agents(ctx);
-                draw_display(ctx);
-
-                next += 1000000 / config_.display_fps;
-            }
-
-            bar_.sync(ctx); // Phase 3
+            last_ = now;
+            period_ = 1.0 / config_.display_fps;
         }
     }
 
 protected:
-    virtual void init_display(Context& ctx) = 0;
-    virtual void draw_display(Context& ctx) = 0;
+    virtual void draw_display() = 0;
 
-    void fetch_agents(Context& ctx) {
+    void fetch_agents() {
         agents_.clear();
         for (int x = 0; x < config_.width_locations; ++x) {
             for (int y = 0; y < config_.height_locations; ++y) {
@@ -391,10 +387,10 @@ protected:
 
                 Shared<Location> *loc;
                 {
-                    Claim<World> c(ctx, world_);
+                    Claim<World> c(world_);
                     loc = c->get(loc_id(x, y, config_));
                 }
-                Claim<Location> c(ctx, *loc);
+                Claim<Location> c(*loc);
 
                 AIMap::const_iterator it, end;
                 c->look(it, end);
@@ -412,74 +408,16 @@ protected:
     AIVector agents_;
 
     Shared<World>& world_;
-    Barrier& bar_;
     Config& config_;
-};
-
-// We must have something that handles SDL_QUIT events, else our program won't
-// exit on SIGINT...
-class SDLEventProcessor : public Activity {
-public:
-    SDLEventProcessor(SDL_Surface *surface)
-        : surface_(surface), fullscreen_(false) {
-    }
-
-    void run(Context& ctx) {
-        Timer tim;
-
-        while (true) {
-            SDL_Event event;
-            while (SDL_PollEvent(&event)) {
-                handle_event(event);
-            }
-
-            tim.delay(ctx, 100000);
-        }
-    }
-
-private:
-    void handle_event(SDL_Event& event) {
-        if (event.type == SDL_QUIT) {
-            quit();
-        }
-        if (event.type == SDL_KEYDOWN) {
-            SDL_keysym &sym(event.key.keysym);
-            bool alt_down = (sym.mod & KMOD_ALT) != 0;
-
-            if (sym.sym == SDLK_ESCAPE) {
-                quit();
-            }
-            if (sym.sym == SDLK_RETURN && alt_down) {
-                toggle_fullscreen();
-            }
-        }
-    }
-
-    void toggle_fullscreen() {
-        SDL_WM_ToggleFullScreen(surface_);
-        fullscreen_ = !fullscreen_;
-    }
-
-    void quit() {
-        if (fullscreen_) {
-            toggle_fullscreen();
-        }
-        exit(0);
-    }
-
-    SDL_Surface *surface_;
-    bool fullscreen_;
+    tbb::tick_count last_;
+    double period_;
 };
 
 class SDLDisplay : public Display {
 public:
-    SDLDisplay(Shared<World>& world, Barrier& bar, Config& config,
+    SDLDisplay(Shared<World>& world, Config& config,
                Controls& controls)
-        : Display(world, bar, config), controls_(controls) {
-    }
-
-protected:
-    virtual void init_display(Context& ctx) {
+        : Display(world, config), controls_(controls), fullscreen_(false) {
         if (SDL_Init(SDL_INIT_VIDEO) < 0) {
             exit(1);
         }
@@ -491,11 +429,17 @@ protected:
         screen_ = SDL_SetVideoMode(config_.width_locations * scale_,
                                    config_.height_locations * scale_,
                                    32, SDL_DOUBLEBUF);
-
-        ctx.spawn(new SDLEventProcessor(screen_));
     }
 
-    virtual void draw_display(Context& ctx) {
+protected:
+    virtual void draw_display() {
+        // We must handle at least SDL_QUIT events, else our program won't
+        // exit on SIGINT...
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            handle_event(event);
+        }
+
         boxColor(screen_,
                  0, 0,
                  config_.width_locations * scale_,
@@ -567,6 +511,35 @@ protected:
     }
 
 private:
+    void handle_event(SDL_Event& event) {
+        if (event.type == SDL_QUIT) {
+            quit();
+        }
+        if (event.type == SDL_KEYDOWN) {
+            SDL_keysym &sym(event.key.keysym);
+            bool alt_down = (sym.mod & KMOD_ALT) != 0;
+
+            if (sym.sym == SDLK_ESCAPE) {
+                quit();
+            }
+            if (sym.sym == SDLK_RETURN && alt_down) {
+                toggle_fullscreen();
+            }
+        }
+    }
+
+    void toggle_fullscreen() {
+        SDL_WM_ToggleFullScreen(screen_);
+        fullscreen_ = !fullscreen_;
+    }
+
+    void quit() {
+        if (fullscreen_) {
+            toggle_fullscreen();
+        }
+        exit(0);
+    }
+
     static const Uint32 BACKGROUND_COLOUR = 0x000000FF;
 
     // The width of a world unit, in pixels
@@ -575,41 +548,26 @@ private:
     SDL_Surface *screen_;
     Controls& controls_;
     int controls_counter_;
+    bool fullscreen_;
 };
 
 // FIXME: I'm not wild about using MI here
 // FIXME: this is also a phase adapter
 class BoidControls : public Controls, public Activity {
 public:
-    BoidControls(Barrier& bar)
-        : bar_(bar) {
+    void phase2() {
+        poll();
     }
-
-    void run(Context& ctx) {
-        while (true) {
-            bar_.sync(ctx); // Phase 1
-            bar_.sync(ctx); // Phase 2
-
-            poll();
-
-            bar_.sync(ctx); // Phase 3
-        }
-    }
-
-private:
-    Barrier& bar_;
 };
 
-class Ccoids : public Activity {
+class Ccoids {
 public:
     Ccoids(const Config& config)
         : config_(config) {
     }
 
-    void run(Context& ctx) {
+    int run() {
         cout << "ccoids starting" << endl;
-
-        Barrier bar(ctx, 1);
 
         ViewerMap viewers;
         // FIXME viewers owned by this map
@@ -620,8 +578,8 @@ public:
         for (int x = 0; x < config_.width_locations; ++x) {
             for (int y = 0; y < config_.height_locations; ++y) {
                 const int id = loc_id(x, y, config_);
-                Shared<Viewer> *viewer = new Shared<Viewer>(ctx, new Viewer);
-                w->add(ctx, new Shared<Location>(ctx, new Location(id, viewer)));
+                Shared<Viewer> *viewer = new Shared<Viewer>(new Viewer);
+                w->add(new Shared<Location>(new Location(id, viewer)));
                 viewers[id] = viewer;
             }
         }
@@ -632,8 +590,8 @@ public:
             for (int y = 0; y < config_.height_locations; ++y) {
                 int id = loc_id(x, y, config_);
                 Shared<Location> *loc = w->get(id);
-                Claim<Location> c(ctx, *loc);
-                Claim<Viewer> v(ctx, *viewers[id]);
+                Claim<Location> c(*loc);
+                Claim<Viewer> v(*viewers[id]);
                 v->location(Vector<float>(0.0, 0.0), loc);
                 for (int i = 0; i < NUM_DIRECTIONS; ++i) {
                     Vector<int> dir = DIRECTIONS[i];
@@ -645,45 +603,54 @@ public:
                 }
             }
         }
-        Shared<World> world(ctx, w);
+        Shared<World> world(w);
+
+        BoidControls *controls = new BoidControls();
+
+        std::vector<ParamsPtr> params;
+        for (int i = 0; i < config_.initial_populations; ++i) {
+            ParamsPtr p(new Params);
+            params.push_back(p);
+            controls->add_and_init(p);
+        }
 
         {
-            Context f(ctx);
+            ActivityPtr ap(controls);
+            activities_.push_back(ap);
+        }
 
-            BoidControls *controls =
-                new BoidControls(bar.enroll());
-            f.spawn(controls);
+        for (ViewerMap::iterator it = viewers.begin();
+             it != viewers.end();
+             ++it) {
+            ActivityPtr ap(new ViewerUpdater(it->second));
+            activities_.push_back(ap);
+        }
 
-            std::vector<ParamsPtr> params;
-            for (int i = 0; i < config_.initial_populations; ++i) {
-                ParamsPtr p(new Params);
-                params.push_back(p);
-                controls->add_and_init(p);
-            }
+        const int count = config_.initial_birds / params.size();
+        BOOST_FOREACH(ParamsPtr& p, params) {
+            add_boids(world, count, *p);
+        }
 
-            for (ViewerMap::iterator it = viewers.begin();
-                 it != viewers.end();
-                 ++it) {
-                f.spawn(new ViewerUpdater(it->second, bar.enroll()));
-            }
+        {
+            ActivityPtr ap(new SDLDisplay(world, config_, *controls));
+            activities_.push_back(ap);
+        }
 
-            const int count = config_.initial_birds / params.size();
-            BOOST_FOREACH(ParamsPtr& p, params) {
-                add_boids(f, bar, world, count, *p);
-            }
-
-            // This final process inherits our barrier end.
-            f.spawn(new SDLDisplay(world, bar, config_, *controls));
+        // Run the activities.
+        while (true) {
+            tbb::parallel_for_each(activities_.begin(), activities_.end(), run_phase1);
+            tbb::parallel_for_each(activities_.begin(), activities_.end(), run_phase2);
+            tbb::parallel_for_each(activities_.begin(), activities_.end(), run_phase3);
         }
 
         cout << "ccoids finished" << endl;
+        return 0;
     }
 
 private:
     typedef boost::shared_ptr<Params> ParamsPtr;
 
-    void add_boids(Context& ctx, Barrier& bar, Shared<World>& world,
-                   int count, Params& params) {
+    void add_boids(Shared<World>& world, int count, Params& params) {
         for (int id = 0; id < count; id++) {
             Vector<float> pos(rand_float() * config_.width_locations,
                       rand_float() * config_.height_locations);
@@ -691,7 +658,7 @@ private:
 
             Shared<Location> *loc;
             {
-                Claim<World> c(ctx, world);
+                Claim<World> c(world);
                 loc = c->get(loc_id(pos_loc.x_, pos_loc.y_, config_));
             }
 
@@ -705,11 +672,13 @@ private:
             info.vel_ = Vector<float>(speed * cos(dir),
                           speed * sin(dir));
 
-            ctx.spawn(new Boid(info, loc, bar.enroll(), params));
+            ActivityPtr ap(new Boid(info, loc, params));
+            activities_.push_back(ap);
         }
     }
 
     Config config_;
+    std::vector<ActivityPtr> activities_;
 };
 
 void parse_options(int argc, char *argv[], Config& config) {
@@ -752,5 +721,6 @@ int main(int argc, char *argv[]) {
     Config config;
     parse_options(argc, argv, config);
 
-    return initial_activity(argc, argv, new Ccoids(config));
+    Ccoids ccoids(config);
+    return ccoids.run();
 }

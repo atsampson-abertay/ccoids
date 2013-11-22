@@ -2,7 +2,7 @@
  *  shared.hh - CoSMoS Demos
  *  Adam Sampson
  *
- *  Copyright (C) 2009, Adam Sampson
+ *  Copyright (C) 2009, 2012, 2013 Adam Sampson
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -35,26 +35,16 @@
 #ifndef SHARED_HH
 #define SHARED_HH
 
-#include "context.hh"
+#include <tbb/queuing_mutex.h>
 
-class Mutex {
-public:
-    Mutex(Context& ctx);
-    ~Mutex();
-    void claim(Context& ctx);
-    void release(Context& ctx);
-
-private:
-    Context& ctx_;
-    void *data_;
-};
+typedef tbb::queuing_mutex SharedMutex;
 
 template <typename INNER> class Claim;
 
 // A shared reference to an object.
 template <typename INNER> class Shared {
 public:
-    Shared(Context& ctx, INNER *inner) : inner_(inner), mutex_(ctx) {
+    Shared(INNER *inner) : inner_(inner) {
     }
 
     ~Shared() {
@@ -63,7 +53,7 @@ public:
 
 private:
     INNER *inner_;
-    Mutex mutex_;
+    SharedMutex mutex_;
 
     friend class Claim<INNER>;
 };
@@ -72,13 +62,8 @@ private:
 // is in scope.
 template <typename INNER> class Claim {
 public:
-    Claim(Context& ctx, Shared<INNER>& shared)
-        : shared_(shared), ctx_(ctx) {
-        shared_.mutex_.claim(ctx_);
-    }
-
-    ~Claim() {
-        shared_.mutex_.release(ctx_);
+    Claim(Shared<INNER>& shared)
+        : shared_(shared), lock_(shared.mutex_) {
     }
 
     INNER *operator->() {
@@ -87,7 +72,7 @@ public:
 
 private:
     Shared<INNER>& shared_;
-    Context& ctx_;
+    SharedMutex::scoped_lock lock_;
 };
 
 #endif
