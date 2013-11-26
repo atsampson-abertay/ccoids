@@ -1,5 +1,5 @@
 AC_PREREQ(2.59)
-AC_INIT(ccoids.cc, 0.1, ats@offog.org)
+AC_INIT(ccoids, 0.1, ats@offog.org)
 AM_INIT_AUTOMAKE([foreign])
 
 AC_PROG_CC
