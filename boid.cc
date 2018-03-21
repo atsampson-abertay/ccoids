@@ -35,7 +35,6 @@
 #include "boid.hh"
 #include "world.hh"
 
-#include <boost/foreach.hpp>
 #include <cmath>
 #include <vector>
 
@@ -90,7 +89,7 @@ void Boid::phase2() {
     // Move towards centroid of visible flock
     {
         Vector<float> com(0.0, 0.0);
-        BOOST_FOREACH(AgentInfo &info, view) {
+        for (AgentInfo &info: view) {
             com += info.pos_;
         }
         if (seen > 0) {
@@ -102,7 +101,7 @@ void Boid::phase2() {
     // Move away from birds that are too close
     {
         Vector<float> push(0.0, 0.0);
-        BOOST_FOREACH(AgentInfo &info, view) {
+        for (AgentInfo &info: view) {
             if (info.pos_.mag2() < (params_.repulsion_distance * params_.repulsion_distance)) {
                 push -= info.pos_;
             }
@@ -113,7 +112,7 @@ void Boid::phase2() {
     // Match velocity
     {
         Vector<float> perceived(0.0, 0.0);
-        BOOST_FOREACH(AgentInfo &info, view) {
+        for (AgentInfo &info: view) {
             perceived += info.vel_;
         }
         if (seen > 0) {

@@ -36,7 +36,6 @@
 #include "display.hh"
 
 #include <SDL_gfxPrimitives.h>
-#include <boost/foreach.hpp>
 
 Display::Display(Shared<World>& world, Config& config)
     : world_(world), config_(config) {
@@ -104,7 +103,7 @@ void SDLDisplay::draw_display() {
 
     // Draw transparent shadows behind the blobs.
     const int blob_size = 0.05 * scale_;
-    BOOST_FOREACH(AgentInfo& info, agents_) {
+    for (AgentInfo& info: agents_) {
         Colour colour = hsv(info.plumage_, 0.7, 1.0);
         colour.a = 0.1;
 
@@ -114,7 +113,7 @@ void SDLDisplay::draw_display() {
     }
 
     // Draw all the tails.
-    BOOST_FOREACH(AgentInfo& info, agents_) {
+    for (AgentInfo& info: agents_) {
         Colour colour = hsv(info.plumage_, 1.0, 1.0);
         colour.a = 0.4;
 
@@ -126,7 +125,7 @@ void SDLDisplay::draw_display() {
 
     // Draw all the blobs.
     const int boid_size = 0.02 * scale_;
-    BOOST_FOREACH(AgentInfo& info, agents_) {
+    for (AgentInfo& info: agents_) {
         Colour colour = hsv(info.plumage_, 0.5, 1.0);
         colour.a = 0.8;
 

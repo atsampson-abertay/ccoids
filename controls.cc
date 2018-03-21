@@ -37,7 +37,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <boost/foreach.hpp>
 #ifdef HAVE_LIBPORTMIDI
 #include <portmidi.h>
 #endif
@@ -279,7 +278,7 @@ void Controls::poll() {
     // Ensure we've got something selected, if possible.
     if (!selected_valid()) handle_select(0);
 
-    BOOST_FOREACH(DevicePtr& cd, devices_) {
+    for (DevicePtr& cd: devices_) {
         cd->poll(*this);
     }
 }
@@ -309,7 +308,7 @@ void Controls::handle_select(int num) {
         adjust_selected_with(adjuster);
         const float value = adjuster.value();
 
-        BOOST_FOREACH(DevicePtr& cd, devices_) {
+        for (DevicePtr& cd: devices_) {
             cd->send_control(i, value);
         }
     }

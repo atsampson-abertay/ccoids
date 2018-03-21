@@ -40,7 +40,6 @@
 #include "shared.hh"
 #include "world.hh"
 
-#include <boost/foreach.hpp>
 #include <boost/program_options.hpp>
 #include <cstdlib>
 #include <iostream>
@@ -125,7 +124,7 @@ public:
         }
 
         const int count = config_.initial_birds / params.size();
-        BOOST_FOREACH(ParamsPtr& p, params) {
+        for (ParamsPtr& p: params) {
             add_boids(world, count, *p);
         }
 
