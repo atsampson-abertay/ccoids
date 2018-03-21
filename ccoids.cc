@@ -154,7 +154,7 @@ public:
 
 private:
     typedef std::map<int, Shared<Viewer> *> ViewerMap;
-    typedef boost::shared_ptr<Params> ParamsPtr;
+    typedef std::shared_ptr<Params> ParamsPtr;
 
     void add_boids(Shared<World>& world, int count, Params& params) {
         for (int id = 0; id < count; id++) {

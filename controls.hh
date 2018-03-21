@@ -35,8 +35,8 @@
 #ifndef CONTROLS_HH
 #define CONTROLS_HH
 
+#include <memory>
 #include <vector>
-#include <boost/shared_ptr.hpp>
 
 class Adjustable;
 class Adjuster;
@@ -67,8 +67,8 @@ public:
 
 class Controls {
 public:
-    typedef boost::shared_ptr<Adjustable> AdjustablePtr;
-    typedef boost::shared_ptr<ControlDevice> DevicePtr;
+    typedef std::shared_ptr<Adjustable> AdjustablePtr;
+    typedef std::shared_ptr<ControlDevice> DevicePtr;
 
     Controls();
 

@@ -243,7 +243,7 @@ Controls::Controls()
     for (PmDeviceID device = 0; device < max; ++device) {
         const PmDeviceInfo *devinfo = Pm_GetDeviceInfo(device);
 
-        boost::shared_ptr<MIDIDevice> cd;
+        std::shared_ptr<MIDIDevice> cd;
 
         cout << "Device " << device << ": " << devinfo->interf << ", " << devinfo->name << endl;
         if (strstr(devinfo->name, "BCF2000 MIDI 1") != NULL) {

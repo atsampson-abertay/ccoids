@@ -38,7 +38,7 @@
 #include "maths.hh"
 #include "controls.hh"
 
-#include <boost/shared_ptr.hpp>
+#include <memory>
 
 // Settings for the whole simulation.
 // These can't be changed after startup.
@@ -114,6 +114,6 @@ public:
     virtual void phase3() {
     }
 };
-typedef boost::shared_ptr<Activity> ActivityPtr;
+typedef std::shared_ptr<Activity> ActivityPtr;
 
 #endif
